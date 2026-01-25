@@ -40,8 +40,9 @@ export default function ChatBot() {
           content: msg.content
         }));
 
-      // Send to API
-      const response = await fetch('/api/v1/chat/message', {
+      // Send to API - use environment variable for API URL
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+      const response = await fetch(`${apiUrl}/api/v1/chat/message`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -104,7 +105,7 @@ export default function ChatBot() {
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
-          className="fixed bottom-6 right-6 bg-blue-600 hover:bg-blue-700 text-white rounded-full p-4 shadow-lg z-50 transition-all duration-200 hover:scale-110"
+          className="fixed bottom-6 right-6 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white rounded-full p-4 shadow-2xl z-50 transition-all duration-200 hover:scale-110 ring-4 ring-blue-500/20"
           aria-label="Open chat"
         >
           <svg
@@ -120,17 +121,17 @@ export default function ChatBot() {
               d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
             />
           </svg>
-          <span className="absolute -top-1 -right-1 bg-green-500 rounded-full w-3 h-3 animate-pulse"></span>
+          <span className="absolute -top-1 -right-1 bg-green-500 rounded-full w-3 h-3 animate-pulse ring-2 ring-white"></span>
         </button>
       )}
 
       {/* Chat Window */}
       {isOpen && (
-        <div className="fixed bottom-6 right-6 w-96 h-[600px] bg-white dark:bg-gray-800 rounded-lg shadow-2xl z-50 flex flex-col overflow-hidden border border-gray-200 dark:border-gray-700">
+        <div className="fixed bottom-6 right-6 w-96 h-[600px] bg-gradient-to-br from-white to-blue-50 dark:from-gray-900 dark:to-blue-950 rounded-2xl shadow-2xl z-50 flex flex-col overflow-hidden border border-blue-200 dark:border-blue-800/50 ring-1 ring-blue-500/10">
           {/* Header */}
-          <div className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white p-4 flex items-center justify-between">
+          <div className="bg-gradient-to-r from-blue-600 via-blue-700 to-cyan-600 text-white p-4 flex items-center justify-between shadow-lg">
             <div className="flex items-center space-x-3">
-              <div className="bg-white/20 rounded-full p-2">
+              <div className="bg-white/20 backdrop-blur-sm rounded-full p-2 ring-2 ring-white/30">
                 <svg
                   className="w-5 h-5"
                   fill="none"
@@ -153,7 +154,7 @@ export default function ChatBot() {
             <div className="flex items-center space-x-2">
               <button
                 onClick={handleReset}
-                className="hover:bg-white/20 rounded p-1.5 transition-colors"
+                className="hover:bg-white/20 backdrop-blur-sm rounded p-1.5 transition-colors"
                 aria-label="Reset conversation"
                 title="Reset conversation"
               >
@@ -173,7 +174,7 @@ export default function ChatBot() {
               </button>
               <button
                 onClick={() => setIsOpen(false)}
-                className="hover:bg-white/20 rounded p-1.5 transition-colors"
+                className="hover:bg-white/20 backdrop-blur-sm rounded p-1.5 transition-colors"
                 aria-label="Close chat"
               >
                 <svg
@@ -194,16 +195,16 @@ export default function ChatBot() {
           </div>
 
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50 dark:bg-gray-900">
+          <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gradient-to-br from-gray-50 to-blue-50/50 dark:from-gray-900 dark:to-blue-950/50">
             {messages.map((message, index) => (
               <ChatMessage key={index} message={message} />
             ))}
             {isLoading && (
               <div className="flex items-center space-x-2 text-gray-500 dark:text-gray-400">
                 <div className="flex space-x-1">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                  <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                  <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                  <div className="w-2 h-2 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                  <div className="w-2 h-2 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                  <div className="w-2 h-2 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
                 </div>
                 <span className="text-sm">MIA is analyzing...</span>
               </div>

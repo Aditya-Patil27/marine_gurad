@@ -5,6 +5,7 @@ from app.database import get_db
 from typing import List, Optional
 from pydantic import BaseModel
 from datetime import datetime
+from app.demo_data import DEMO_ALERTS
 
 router = APIRouter()
 
@@ -24,82 +25,36 @@ async def get_alerts(
     severity: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
-    """Get active alerts with predictive warnings"""
-    
+    """Get active alerts with predictive warnings - DEMO MODE with hardcoded data"""
+
     alerts = []
-    
-    # High-risk vessel alerts
-    vessel_query = text("""
-        SELECT 
-            mmsi,
-            vessel_type,
-            risk_score,
-            timestamp,
-            ST_X(location::geometry) as lon,
-            ST_Y(location::geometry) as lat
-        FROM vessel_tracks
-        WHERE risk_score > 0.7
-        AND timestamp > NOW() - INTERVAL '6 hours'
-        ORDER BY risk_score DESC
-        LIMIT :limit
-    """)
-    
-    vessel_result = db.execute(vessel_query, {"limit": limit})
-    
-    for row in vessel_result:
+
+    for alert in DEMO_ALERTS:
+        # Filter by severity if specified
+        if severity and alert["severity"] != severity.upper():
+            continue
+
+        # Create location dict
+        location = {}
+        if "mmsi" in alert:
+            # Find vessel location from demo vessels
+            from app.demo_data import DEMO_VESSELS
+            vessel = next((v for v in DEMO_VESSELS if v["mmsi"] == alert.get("mmsi")), None)
+            if vessel:
+                location = {"lat": vessel["coordinates"][1], "lon": vessel["coordinates"][0]}
+
         alerts.append({
-            "id": f"vessel-{row.mmsi}-{row.timestamp.timestamp()}",
-            "type": "IUU_FISHING",
-            "severity": "HIGH" if row.risk_score > 0.85 else "MEDIUM",
-            "title": f"Suspicious Vessel Activity - MMSI {row.mmsi}",
-            "description": f"Vessel showing dark activity patterns. Risk score: {row.risk_score:.2f}",
-            "timestamp": row.timestamp,
-            "location": {"lat": row.lat, "lon": row.lon},
-            "metadata": {
-                "mmsi": row.mmsi,
-                "vessel_type": row.vessel_type,
-                "risk_score": row.risk_score
-            }
+            "id": str(alert["id"]),
+            "type": alert["type"],
+            "severity": alert["severity"],
+            "title": alert["title"],
+            "description": alert["description"],
+            "timestamp": alert["timestamp"],
+            "location": location,
+            "metadata": {k: v for k, v in alert.items() if k not in ["id", "type", "severity", "title", "description", "timestamp"]}
         })
-    
-    # Pollution alerts
-    pollution_query = text("""
-        SELECT 
-            id,
-            type,
-            severity,
-            detected_at,
-            ST_AsGeoJSON(ST_Centroid(zone::geometry)) as centroid
-        FROM pollution_events
-        WHERE detected_at > NOW() - INTERVAL '24 hours'
-        ORDER BY severity DESC
-        LIMIT :limit
-    """)
-    
-    pollution_result = db.execute(pollution_query, {"limit": limit})
-    
-    for row in pollution_result:
-        import json
-        centroid = json.loads(row.centroid)
-        
-        alerts.append({
-            "id": str(row.id),
-            "type": "POLLUTION",
-            "severity": "HIGH" if row.severity > 0.7 else "MEDIUM",
-            "title": f"{row.type} Pollution Detected",
-            "description": f"Severity: {row.severity:.2f}",
-            "timestamp": row.detected_at,
-            "location": {
-                "lat": centroid["coordinates"][1],
-                "lon": centroid["coordinates"][0]
-            },
-            "metadata": {
-                "pollution_type": row.type,
-                "severity": row.severity
-            }
-        })
-    
+
     # Sort by timestamp descending
     alerts.sort(key=lambda x: x["timestamp"], reverse=True)
-    
+
     return alerts[:limit]

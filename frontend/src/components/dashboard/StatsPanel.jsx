@@ -28,35 +28,35 @@ const StatsPanel = () => {
 
   return (
     <div className="flex items-center space-x-6">
-      <div className="flex items-center space-x-2">
-        <Ship className="w-5 h-5 text-ocean-300" />
+      <div className="flex items-center space-x-2 bg-white/10 backdrop-blur-sm rounded-lg px-3 py-2 border border-white/20 shadow-lg">
+        <Ship className="w-5 h-5 text-cyan-300" />
         <div>
-          <p className="text-xs text-ocean-200">Active Vessels</p>
-          <p className="text-lg font-bold text-white">{stats.active_vessels}</p>
+          <p className="text-xs text-blue-200">Active Vessels</p>
+          <p className="text-lg font-bold bg-gradient-to-r from-white to-blue-100 bg-clip-text text-transparent">{stats.active_vessels}</p>
         </div>
       </div>
 
-      <div className="flex items-center space-x-2">
+      <div className="flex items-center space-x-2 bg-white/10 backdrop-blur-sm rounded-lg px-3 py-2 border border-white/20 shadow-lg">
         <Droplet className="w-5 h-5 text-red-400" />
         <div>
-          <p className="text-xs text-ocean-200">Pollution Events</p>
-          <p className="text-lg font-bold text-white">{stats.pollution_events_week}</p>
+          <p className="text-xs text-blue-200">Pollution Events</p>
+          <p className="text-lg font-bold bg-gradient-to-r from-white to-blue-100 bg-clip-text text-transparent">{stats.pollution_events_week}</p>
         </div>
       </div>
 
-      <div className="flex items-center space-x-2">
+      <div className="flex items-center space-x-2 bg-white/10 backdrop-blur-sm rounded-lg px-3 py-2 border border-white/20 shadow-lg">
         <Activity className="w-5 h-5 text-yellow-400" />
         <div>
-          <p className="text-xs text-ocean-200">High Risk</p>
-          <p className="text-lg font-bold text-white">{stats.high_risk_vessels}</p>
+          <p className="text-xs text-blue-200">High Risk</p>
+          <p className="text-lg font-bold bg-gradient-to-r from-white to-blue-100 bg-clip-text text-transparent">{stats.high_risk_vessels}</p>
         </div>
       </div>
 
-      <div className="flex items-center space-x-2">
+      <div className="flex items-center space-x-2 bg-white/10 backdrop-blur-sm rounded-lg px-3 py-2 border border-white/20 shadow-lg">
         <Shield className="w-5 h-5 text-green-400" />
         <div>
-          <p className="text-xs text-ocean-200">MPAs</p>
-          <p className="text-lg font-bold text-white">{stats.mpas_monitored}</p>
+          <p className="text-xs text-blue-200">MPAs</p>
+          <p className="text-lg font-bold bg-gradient-to-r from-white to-blue-100 bg-clip-text text-transparent">{stats.mpas_monitored}</p>
         </div>
       </div>
     </div>

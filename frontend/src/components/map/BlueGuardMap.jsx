@@ -8,9 +8,16 @@ import 'leaflet/dist/leaflet.css'
 
 const { BaseLayer } = LayersControl
 
+// Default center coordinates - can be overridden via environment variables
+const DEFAULT_CENTER = [
+  parseFloat(import.meta.env.VITE_MAP_CENTER_LAT) || 20.0,  // Default to global ocean view
+  parseFloat(import.meta.env.VITE_MAP_CENTER_LNG) || 77.0   // Indian Ocean region
+]
+const DEFAULT_ZOOM = parseInt(import.meta.env.VITE_MAP_ZOOM) || 4
+
 const BlueGuardMap = ({ selectedLayer, onLayerChange }) => {
-  const [center] = useState([37.7749, -122.4194]) // San Francisco Bay
-  const [zoom] = useState(8)
+  const [center] = useState(DEFAULT_CENTER)
+  const [zoom] = useState(DEFAULT_ZOOM)
   const [layers, setLayers] = useState({
     vessels: true,
     pollution: true,

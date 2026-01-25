@@ -41,15 +41,14 @@ services:
     ports:
       - "8000:8000"
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-blueguard}:${POSTGRES_PASSWORD:-blueguard_secret}@postgres:5432/${POSTGRES_DB:-blueguard_db}
+      # Use SUPABASE_URL env var for Supabase, or local postgres URL for development
+      DATABASE_URL: ${SUPABASE_URL:-postgresql://${POSTGRES_USER:-blueguard}:${POSTGRES_PASSWORD:-blueguard_secret}@host.docker.internal:5432/${POSTGRES_DB:-blueguard_db}}
       REDIS_URL: redis://redis:6379/0
       PYTHONUNBUFFERED: 1
     volumes:
       - ./backend:/app
       - model_weights:/app/models
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
 
@@ -60,14 +59,14 @@ services:
     container_name: blueguard_celery
     command: celery -A app.tasks.celery_app worker --loglevel=info
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-blueguard}:${POSTGRES_PASSWORD:-blueguard_secret}@postgres:5432/${POSTGRES_DB:-blueguard_db}
+      # Use SUPABASE_URL env var for Supabase, or local postgres URL for development
+      DATABASE_URL: ${SUPABASE_URL:-postgresql://${POSTGRES_USER:-blueguard}:${POSTGRES_PASSWORD:-blueguard_secret}@host.docker.internal:5432/${POSTGRES_DB:-blueguard_db}}
       REDIS_URL: redis://redis:6379/0
     volumes:
       - ./backend:/app
       - model_weights:/app/models
     depends_on:
       - redis
-      - postgres
 
   frontend:
     build:

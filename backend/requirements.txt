@@ -10,21 +10,21 @@ redis==5.0.1
 pydantic==2.5.0
 pydantic-settings==2.1.0
 python-multipart==0.0.6
-httpx==0.25.1
-supabase==2.3.0
-postgrest-py==0.13.0
+httpx>=0.24.0
+supabase>=2.0.0
+postgrest-py>=0.10.0
 
-# Google Gemini 3 SDK (2026 version with Deep Think support)
-google-genai==0.3.0
+# Google Gemini SDK
+google-generativeai==0.3.2
 
-# AI/ML
-torch==2.1.1
-torchvision==0.16.1
+# AI/ML - Updated for Python 3.12 compatibility
+torch==2.2.0
+torchvision==0.17.0
 ultralytics==8.0.220
 prophet==1.1.5
-numpy==1.24.3
-pandas==2.1.3
-pillow==10.1.0
+numpy==1.26.4
+pandas==2.1.4
+pillow==10.2.0
 
 # Geospatial
 fiona==1.9.5

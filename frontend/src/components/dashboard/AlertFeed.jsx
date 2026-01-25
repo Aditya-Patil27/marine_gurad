@@ -21,13 +21,13 @@ const AlertFeed = () => {
   const getSeverityColor = (severity) => {
     switch (severity) {
       case 'HIGH':
-        return 'border-l-red-500 bg-red-50'
+        return 'border-l-red-500 bg-gradient-to-r from-red-50 to-red-100/50 dark:from-red-950/30 dark:to-red-900/20'
       case 'MEDIUM':
-        return 'border-l-yellow-500 bg-yellow-50'
+        return 'border-l-yellow-500 bg-gradient-to-r from-yellow-50 to-yellow-100/50 dark:from-yellow-950/30 dark:to-yellow-900/20'
       case 'LOW':
-        return 'border-l-green-500 bg-green-50'
+        return 'border-l-green-500 bg-gradient-to-r from-green-50 to-green-100/50 dark:from-green-950/30 dark:to-green-900/20'
       default:
-        return 'border-l-gray-500 bg-gray-50'
+        return 'border-l-gray-500 bg-gradient-to-r from-gray-50 to-gray-100/50 dark:from-gray-950/30 dark:to-gray-900/20'
     }
   }
 
@@ -51,8 +51,8 @@ const AlertFeed = () => {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-white">Alert Feed</h2>
-        <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full">
+        <h2 className="text-lg font-semibold bg-gradient-to-r from-blue-200 to-cyan-200 bg-clip-text text-transparent">Alert Feed</h2>
+        <span className="bg-gradient-to-r from-red-500 to-red-600 text-white text-xs px-2.5 py-1 rounded-full shadow-lg ring-2 ring-red-500/20">
           {alerts.length}
         </span>
       </div>
@@ -66,20 +66,20 @@ const AlertFeed = () => {
           alerts.map((alert) => (
             <div
               key={alert.id}
-              className={`border-l-4 p-3 rounded ${getSeverityColor(alert.severity)}`}
+              className={`border-l-4 p-3 rounded-lg shadow-md ${getSeverityColor(alert.severity)} backdrop-blur-sm`}
             >
               <div className="flex items-start space-x-3">
                 <div className="flex-shrink-0 mt-0.5">
                   {getAlertIcon(alert.type)}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-gray-900">
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">
                     {alert.title}
                   </p>
-                  <p className="text-xs text-gray-700 mt-1">
+                  <p className="text-xs text-gray-700 dark:text-gray-300 mt-1">
                     {alert.description}
                   </p>
-                  <p className="text-xs text-gray-500 mt-2">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
                     {new Date(alert.timestamp).toLocaleString()}
                   </p>
                 </div>
