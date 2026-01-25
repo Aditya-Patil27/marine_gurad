@@ -524,14 +524,6 @@ We welcome contributions! Please:
 - Write unit tests for new features
 - Update documentation for API changes
 
----
-
-## 📄 License
-
-This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
-
----
-
 ## 🙏 Acknowledgments
 
 - **OpenStreetMap** - Map tiles
@@ -540,24 +532,6 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 - **MarineCadastre** - AIS vessel data
 - **Protected Planet** - MPA boundary data
 - **Ocean Health Index** - Ecosystem health metrics
-
----
-
-## 📞 Contact & Support
-
-- **Project Maintainer**: [Your Name]
-- **Email**: contact@blueguard.io
-- **Documentation**: https://docs.blueguard.io
-- **Issues**: https://github.com/yourusername/blue_guard/issues
-- **Discussions**: https://github.com/yourusername/blue_guard/discussions
-
----
-
-## 🌟 Star History
-
-If you find this project useful, please consider giving it a star ⭐
-
----
 
 **Built with 💙 for the oceans**
 
