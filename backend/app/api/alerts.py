@@ -24,7 +24,12 @@ async def get_alerts(
     severity: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
-    """Get active alerts with predictive warnings from database"""
+    """
+    Get active alerts with predictive warnings from database.
+    
+    Optimized to avoid N+1 query problem - vessel coordinates are now
+    included directly in the alert data from AlertGenerator.
+    """
 
     # Use AlertGenerator to generate real-time alerts
     alert_gen = AlertGenerator(db)
@@ -37,24 +42,11 @@ async def get_alerts(
         if severity and alert["severity"] != severity.lower():
             continue
 
-        # Extract location from alert data
+        # Extract location directly from alert data (no additional query needed)
+        # AlertGenerator now includes lat/lon coordinates via SQL JOIN
         location = {}
-        if "mmsi" in alert:
-            # Get vessel location from database using SQL JOIN
-            from sqlalchemy import text
-            result = db.execute(
-                text("""
-                    SELECT ST_X(location::geometry) as lon, ST_Y(location::geometry) as lat
-                    FROM vessel_tracks
-                    WHERE mmsi = :mmsi
-                    ORDER BY timestamp DESC
-                    LIMIT 1
-                """),
-                {"mmsi": alert["mmsi"]}
-            ).fetchone()
-
-            if result:
-                location = {"lat": result.lat, "lon": result.lon}
+        if "lat" in alert and "lon" in alert:
+            location = {"lat": alert["lat"], "lon": alert["lon"]}
 
         # Generate title and description based on alert type
         title = ""
@@ -82,7 +74,7 @@ async def get_alerts(
             "description": description,
             "timestamp": datetime.utcnow(),
             "location": location,
-            "metadata": {k: v for k, v in alert.items() if k not in ["type", "severity", "mmsi"]}
+            "metadata": {k: v for k, v in alert.items() if k not in ["type", "severity", "mmsi", "lat", "lon"]}
         })
 
     # Sort by severity (HIGH > MEDIUM > LOW) and timestamp

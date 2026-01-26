@@ -1,5 +1,6 @@
 from pydantic_settings import BaseSettings
 from functools import lru_cache
+from typing import Optional
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "BlueGuard"
@@ -30,9 +31,35 @@ class Settings(BaseSettings):
     # Frontend
     FRONTEND_URL: str = "http://localhost:5173"
     
-    # Model paths
+    # Model paths (local fallback)
     YOLO_MODEL_PATH: str = "models/pollution_yolo.pt"
     LSTM_MODEL_PATH: str = "models/route_lstm.pt"
+    
+    # Model Registry Configuration
+    # Storage backend: "local", "supabase", "s3", "http"
+    MODEL_STORAGE_BACKEND: str = "local"
+    MODEL_CACHE_DIR: Optional[str] = None  # Defaults to ~/.blueguard/models
+    
+    # AWS S3 Configuration (for model storage)
+    AWS_ACCESS_KEY_ID: Optional[str] = None
+    AWS_SECRET_ACCESS_KEY: Optional[str] = None
+    AWS_REGION: str = "us-east-1"
+    AWS_S3_MODEL_BUCKET: Optional[str] = None
+    
+    # Supabase Storage Configuration (for models)
+    SUPABASE_MODEL_BUCKET: str = "models"
+    
+    # Model versions (semantic versioning)
+    YOLO_MODEL_VERSION: str = "1.0.0"
+    LSTM_MODEL_VERSION: str = "1.0.0"
+    
+    # Remote model paths (used when MODEL_STORAGE_BACKEND != "local")
+    # Format depends on backend:
+    #   - S3: "bucket-name/path/to/model.pt"
+    #   - Supabase: "bucket-name/path/to/model.pt"
+    #   - HTTP: "https://example.com/models/model.pt"
+    YOLO_MODEL_REMOTE_PATH: Optional[str] = None
+    LSTM_MODEL_REMOTE_PATH: Optional[str] = None
     
     # Thresholds
     POLLUTION_CONFIDENCE_THRESHOLD: float = 0.5

@@ -14,11 +14,28 @@ celery_app.conf.update(
     result_serializer="json",
     timezone="UTC",
     enable_utc=True,
+    # Configure worker concurrency for ML tasks
+    worker_prefetch_multiplier=1,  # One task at a time for GPU tasks
+    task_acks_late=True,  # Acknowledge after completion
 )
 
-@celery_app.task(name="process_satellite_image")
-def process_satellite_image(image_url: str, metadata: dict = None):
-    """Background task to process satellite imagery"""
+@celery_app.task(name="process_satellite_image", bind=True, max_retries=3)
+def process_satellite_image(self, image_url: str, metadata: dict = None):
+    """
+    Background Celery task to process satellite imagery for pollution detection.
+    
+    This task runs entirely within the Celery worker, keeping deep learning
+    inference off the main FastAPI thread. Uses synchronous HTTP and model
+    inference to avoid event loop issues in Celery.
+    
+    Args:
+        image_url: URL of the satellite image to process
+        metadata: Optional dict with geographic bounds and image dimensions
+                 Format: {"bounds": [min_lon, min_lat, max_lon, max_lat]}
+    
+    Returns:
+        Dict with status and detection count
+    """
     from app.services.pollution_detector import PollutionDetector
     from app.database import SessionLocal
     from app.models.pollution import PollutionEvent, PollutionType
@@ -29,8 +46,13 @@ def process_satellite_image(image_url: str, metadata: dict = None):
 
     detector = PollutionDetector()
 
-    # Run async detection in sync context using asyncio.run()
-    detections = asyncio.run(detector.detect(image_url, metadata))
+    # Use synchronous detection method for Celery compatibility
+    # This avoids asyncio.run() which can cause issues with Celery's event loop
+    try:
+        detections = detector.detect_sync(image_url, metadata)
+    except Exception as e:
+        print(f"Detection failed, retrying: {e}")
+        raise self.retry(exc=e, countdown=60)  # Retry after 60 seconds
 
     # Store detections in database
     db = SessionLocal()
@@ -87,6 +109,43 @@ def process_satellite_image(image_url: str, metadata: dict = None):
         return {"status": "failed", "error": str(e)}
     finally:
         db.close()
+
+
+@celery_app.task(name="batch_process_satellite_images", bind=True)
+def batch_process_satellite_images(self, image_urls: list, metadata_list: list = None):
+    """
+    Process multiple satellite images in batch.
+    
+    This task processes images sequentially to avoid overwhelming GPU memory.
+    For parallel processing across multiple workers, dispatch individual
+    process_satellite_image tasks instead.
+    
+    Args:
+        image_urls: List of image URLs to process
+        metadata_list: Optional list of metadata dicts (one per image)
+    
+    Returns:
+        Dict with overall status and per-image results
+    """
+    results = []
+    metadata_list = metadata_list or [None] * len(image_urls)
+    
+    for url, metadata in zip(image_urls, metadata_list):
+        try:
+            result = process_satellite_image(url, metadata)
+            results.append({"url": url, **result})
+        except Exception as e:
+            results.append({"url": url, "status": "failed", "error": str(e)})
+    
+    successful = sum(1 for r in results if r.get("status") == "completed")
+    return {
+        "status": "completed",
+        "total": len(image_urls),
+        "successful": successful,
+        "failed": len(image_urls) - successful,
+        "results": results
+    }
+
 
 @celery_app.task(name="calculate_vessel_risk")
 def calculate_vessel_risk(mmsi: int):

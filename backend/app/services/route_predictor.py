@@ -1,10 +1,13 @@
 import torch
 import torch.nn as nn
 import numpy as np
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 from shapely.geometry import LineString, Point
 from app.config import settings
 import os
+
+from app.services.model_registry import get_model_registry, StorageBackend
+
 
 class VesselLSTM(nn.Module):
     """LSTM model for vessel trajectory prediction"""
@@ -25,8 +28,16 @@ class VesselLSTM(nn.Module):
         out = self.fc(out[:, -1, :])
         return out
 
+
 class RoutePredictor:
-    """Service for predicting vessel trajectories using LSTM"""
+    """
+    Service for predicting vessel trajectories using LSTM.
+    
+    Model Loading:
+    - Supports local files, Supabase Storage, S3, and HTTP URLs
+    - Uses the model registry for versioning and caching
+    - Falls back to untrained model if weights not available
+    """
     
     _instance = None
     
@@ -46,12 +57,46 @@ class RoutePredictor:
         self._initialized = True
     
     def _load_model(self):
-        """Load LSTM model"""
+        """
+        Load LSTM model using the model registry.
+        
+        Attempts to load in this order:
+        1. From model registry (supports remote storage)
+        2. From local filesystem path
+        3. Untrained model as fallback
+        """
         try:
             self.model = VesselLSTM()
+            model_path = None
             
-            if os.path.exists(settings.LSTM_MODEL_PATH):
-                self.model.load_state_dict(torch.load(settings.LSTM_MODEL_PATH, map_location=self.device))
+            # Try loading from model registry first
+            if settings.MODEL_STORAGE_BACKEND != "local" and settings.LSTM_MODEL_REMOTE_PATH:
+                registry = get_model_registry()
+                
+                # Register model if not already registered
+                if not registry.get_model_metadata("route_lstm", settings.LSTM_MODEL_VERSION):
+                    backend = StorageBackend(settings.MODEL_STORAGE_BACKEND)
+                    registry.register_model(
+                        name="route_lstm",
+                        version=settings.LSTM_MODEL_VERSION,
+                        backend=backend,
+                        path=settings.LSTM_MODEL_REMOTE_PATH,
+                        description="LSTM vessel trajectory prediction model"
+                    )
+                
+                # Get model (downloads if needed)
+                model_path = registry.get_model("route_lstm", settings.LSTM_MODEL_VERSION)
+                
+                if model_path:
+                    print(f"Loading LSTM model from registry: {model_path}")
+            
+            # Fallback to local path
+            if not model_path and os.path.exists(settings.LSTM_MODEL_PATH):
+                model_path = settings.LSTM_MODEL_PATH
+                print(f"Loading LSTM model from local path: {model_path}")
+            
+            if model_path:
+                self.model.load_state_dict(torch.load(model_path, map_location=self.device))
                 print(f"Loaded route prediction model on {self.device}")
             else:
                 print("LSTM model weights not found, using untrained model")
@@ -62,6 +107,34 @@ class RoutePredictor:
         except Exception as e:
             print(f"Error loading LSTM model: {e}")
             self.model = None
+    
+    def reload_model(self, version: Optional[str] = None, force_download: bool = False):
+        """
+        Reload the model, optionally with a different version.
+        
+        Args:
+            version: Specific model version to load, or None for latest
+            force_download: Re-download even if cached
+        """
+        try:
+            registry = get_model_registry()
+            model_path = registry.get_model(
+                "route_lstm",
+                version=version,
+                force_download=force_download
+            )
+            
+            if model_path:
+                self.model = VesselLSTM()
+                self.model.load_state_dict(torch.load(model_path, map_location=self.device))
+                self.model.to(self.device)
+                self.model.eval()
+                print(f"Reloaded LSTM model v{version or 'latest'} on {self.device}")
+            else:
+                print("Failed to reload model")
+                
+        except Exception as e:
+            print(f"Error reloading model: {e}")
     
     def predict_trajectory(
         self,

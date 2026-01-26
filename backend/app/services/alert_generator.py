@@ -3,7 +3,7 @@ from sqlalchemy import text
 from shapely.geometry import Point, shape, mapping
 from shapely import wkb
 from shapely.ops import transform
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Optional
 from datetime import datetime, timedelta
 import json
 
@@ -15,6 +15,7 @@ class AlertGenerator:
     def __init__(self, db: Session):
         self.db = db
         self.route_predictor = RoutePredictor()
+        self._vessel_location_cache: Dict[int, Tuple[float, float]] = {}
     
     def _get_vessel_history(self, mmsi: int, hours: int = 2) -> List[Tuple[float, float]]:
         """Retrieve recent position history for a vessel"""
@@ -31,6 +32,33 @@ class AlertGenerator:
 
         result = self.db.execute(query, {"mmsi": mmsi, "hours": hours})
         return [(row.lon, row.lat) for row in result]
+    
+    def get_vessel_locations_batch(self, mmsi_list: List[int]) -> Dict[int, Tuple[float, float]]:
+        """
+        Fetch vessel locations for multiple MMSIs in a single query.
+        This solves the N+1 query problem by batching lookups.
+        
+        Args:
+            mmsi_list: List of MMSI numbers to look up
+            
+        Returns:
+            Dictionary mapping MMSI to (lat, lon) tuple
+        """
+        if not mmsi_list:
+            return {}
+        
+        query = text("""
+            SELECT DISTINCT ON (mmsi)
+                mmsi,
+                ST_X(location::geometry) as lon,
+                ST_Y(location::geometry) as lat
+            FROM vessel_tracks
+            WHERE mmsi = ANY(:mmsi_list)
+            ORDER BY mmsi, timestamp DESC
+        """)
+        
+        result = self.db.execute(query, {"mmsi_list": mmsi_list})
+        return {row.mmsi: (row.lat, row.lon) for row in result}
     
     def _estimate_arrival_time(self, distance_km: float, speed_knots: float) -> str:
         """Estimate time to reach MPA based on current speed"""
@@ -49,11 +77,15 @@ class AlertGenerator:
             return f"{hours / 24:.1f} days"
     
     def check_mpa_violations(self) -> List[Dict]:
-        """Check for vessels predicted to enter MPAs using LSTM trajectory prediction"""
+        """
+        Check for vessels predicted to enter MPAs using LSTM trajectory prediction.
+        Returns alerts with vessel coordinates included via SQL JOIN to solve N+1 problem.
+        """
         
         alerts = []
         
-        # Query vessels near MPAs with their recent positions
+        # Query vessels near MPAs with their recent positions and coordinates
+        # Using SQL JOIN to include vessel location directly, avoiding N+1 queries
         query = text("""
             SELECT 
                 v.mmsi,
@@ -110,47 +142,44 @@ class AlertGenerator:
             )
             
             # Generate alert based on prediction
+            # Include lat/lon directly to avoid N+1 queries in the alerts API
+            base_alert_data = {
+                "mmsi": row.mmsi,
+                "vessel_type": row.vessel_type,
+                "mpa_name": row.mpa_name,
+                "mpa_id": row.mpa_id,
+                "risk_score": row.risk_score,
+                "trajectory": mapping(predicted_trajectory),
+                "lat": row.lat,  # Include coordinates directly
+                "lon": row.lon,  # to avoid N+1 queries
+            }
+            
             if is_currently_inside:
                 alerts.append({
+                    **base_alert_data,
                     "type": "MPA_VIOLATION",
                     "severity": "critical",
-                    "mmsi": row.mmsi,
-                    "vessel_type": row.vessel_type,
-                    "mpa_name": row.mpa_name,
-                    "mpa_id": row.mpa_id,
                     "distance_km": 0,
-                    "risk_score": row.risk_score,
                     "estimated_time": "Currently inside",
                     "predicted_violation": True,
-                    "trajectory": mapping(predicted_trajectory)
                 })
             elif will_violate:
                 alerts.append({
+                    **base_alert_data,
                     "type": "MPA_APPROACH_PREDICTED",
                     "severity": "high",
-                    "mmsi": row.mmsi,
-                    "vessel_type": row.vessel_type,
-                    "mpa_name": row.mpa_name,
-                    "mpa_id": row.mpa_id,
                     "distance_km": round(row.distance_meters / 1000, 2),
-                    "risk_score": row.risk_score,
                     "estimated_time": estimated_time,
                     "predicted_violation": True,
-                    "trajectory": mapping(predicted_trajectory)
                 })
             elif row.distance_meters < 10000:  # Within 10km but not predicted to violate
                 alerts.append({
+                    **base_alert_data,
                     "type": "MPA_APPROACH",
                     "severity": "medium",
-                    "mmsi": row.mmsi,
-                    "vessel_type": row.vessel_type,
-                    "mpa_name": row.mpa_name,
-                    "mpa_id": row.mpa_id,
                     "distance_km": round(row.distance_meters / 1000, 2),
-                    "risk_score": row.risk_score,
                     "estimated_time": estimated_time,
                     "predicted_violation": False,
-                    "trajectory": mapping(predicted_trajectory)
                 })
         
         return alerts
