@@ -1,11 +1,10 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import text
 from app.database import get_db
 from typing import List, Optional
 from pydantic import BaseModel
 from datetime import datetime
-from app.demo_data import DEMO_ALERTS
+from app.services.alert_generator import AlertGenerator
 
 router = APIRouter()
 
@@ -25,36 +24,69 @@ async def get_alerts(
     severity: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
-    """Get active alerts with predictive warnings - DEMO MODE with hardcoded data"""
+    """Get active alerts with predictive warnings from database"""
+
+    # Use AlertGenerator to generate real-time alerts
+    alert_gen = AlertGenerator(db)
+    raw_alerts = alert_gen.check_mpa_violations()
 
     alerts = []
 
-    for alert in DEMO_ALERTS:
+    for alert in raw_alerts:
         # Filter by severity if specified
-        if severity and alert["severity"] != severity.upper():
+        if severity and alert["severity"] != severity.lower():
             continue
 
-        # Create location dict
+        # Extract location from alert data
         location = {}
         if "mmsi" in alert:
-            # Find vessel location from demo vessels
-            from app.demo_data import DEMO_VESSELS
-            vessel = next((v for v in DEMO_VESSELS if v["mmsi"] == alert.get("mmsi")), None)
-            if vessel:
-                location = {"lat": vessel["coordinates"][1], "lon": vessel["coordinates"][0]}
+            # Get vessel location from database using SQL JOIN
+            from sqlalchemy import text
+            result = db.execute(
+                text("""
+                    SELECT ST_X(location::geometry) as lon, ST_Y(location::geometry) as lat
+                    FROM vessel_tracks
+                    WHERE mmsi = :mmsi
+                    ORDER BY timestamp DESC
+                    LIMIT 1
+                """),
+                {"mmsi": alert["mmsi"]}
+            ).fetchone()
+
+            if result:
+                location = {"lat": result.lat, "lon": result.lon}
+
+        # Generate title and description based on alert type
+        title = ""
+        description = ""
+
+        if alert["type"] == "MPA_VIOLATION":
+            title = f"MPA Violation Detected - {alert.get('mpa_name', 'Unknown MPA')}"
+            description = f"Vessel {alert['mmsi']} is currently inside {alert.get('mpa_name', 'protected area')}. Risk score: {alert['risk_score']:.2f}"
+        elif alert["type"] == "MPA_APPROACH_PREDICTED":
+            title = f"Predicted MPA Violation - {alert.get('mpa_name', 'Unknown MPA')}"
+            description = f"Vessel {alert['mmsi']} is predicted to enter {alert.get('mpa_name', 'protected area')} in {alert.get('estimated_time', 'unknown time')}. Distance: {alert.get('distance_km', 0):.2f}km"
+        elif alert["type"] == "MPA_APPROACH":
+            title = f"Vessel Near MPA - {alert.get('mpa_name', 'Unknown MPA')}"
+            description = f"Vessel {alert['mmsi']} is within {alert.get('distance_km', 0):.2f}km of {alert.get('mpa_name', 'protected area')}"
+
+        # Map severity to uppercase
+        severity_map = {"critical": "HIGH", "high": "HIGH", "medium": "MEDIUM", "low": "LOW"}
+        severity_upper = severity_map.get(alert["severity"], "MEDIUM")
 
         alerts.append({
-            "id": str(alert["id"]),
+            "id": f"{alert['type']}_{alert['mmsi']}_{alert.get('mpa_id', 0)}",
             "type": alert["type"],
-            "severity": alert["severity"],
-            "title": alert["title"],
-            "description": alert["description"],
-            "timestamp": alert["timestamp"],
+            "severity": severity_upper,
+            "title": title,
+            "description": description,
+            "timestamp": datetime.utcnow(),
             "location": location,
-            "metadata": {k: v for k, v in alert.items() if k not in ["id", "type", "severity", "title", "description", "timestamp"]}
+            "metadata": {k: v for k, v in alert.items() if k not in ["type", "severity", "mmsi"]}
         })
 
-    # Sort by timestamp descending
-    alerts.sort(key=lambda x: x["timestamp"], reverse=True)
+    # Sort by severity (HIGH > MEDIUM > LOW) and timestamp
+    severity_order = {"HIGH": 0, "MEDIUM": 1, "LOW": 2}
+    alerts.sort(key=lambda x: (severity_order.get(x["severity"], 3), x["timestamp"]), reverse=True)
 
     return alerts[:limit]

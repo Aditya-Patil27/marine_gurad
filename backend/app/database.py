@@ -1,4 +1,5 @@
 from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 from sqlmodel import SQLModel, Session
 from typing import Generator
 from app.config import settings
@@ -9,6 +10,9 @@ engine = create_engine(
     pool_size=10,
     max_overflow=20,
 )
+
+# SessionLocal factory for standalone scripts
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine, class_=Session)
 
 def get_db() -> Generator[Session, None, None]:
     """Dependency for FastAPI to get database session"""

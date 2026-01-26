@@ -1,11 +1,14 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import text
+from sqlalchemy import text, func
 from app.database import get_db
 from app.schemas.health import OHITimeSeries
+from app.models.health import OceanHealthMetric
+from app.models.vessel import VesselTrack
+from app.models.pollution import PollutionEvent
+from app.models.mpa import MarineProtectedArea
 from typing import Optional
 from datetime import datetime, timedelta
-from app.demo_data import DEMO_STATS, DEMO_OHI_DATA
 
 router = APIRouter()
 
@@ -15,15 +18,44 @@ async def get_ocean_health_index(
     days: int = Query(30, description="Number of days to fetch"),
     db: Session = Depends(get_db)
 ):
-    """Get Ocean Health Index time series data - DEMO MODE with hardcoded data"""
+    """Get Ocean Health Index time series data from database"""
 
-    dates = [item["date"] for item in DEMO_OHI_DATA["historical_data"]]
-    ohi_scores = [item["score"] for item in DEMO_OHI_DATA["historical_data"]]
+    # Query ocean health metrics from database
+    query = text("""
+        SELECT
+            date,
+            ohi_score,
+            temperature,
+            ph,
+            forecasted_score
+        FROM ocean_health_metrics
+        WHERE region_id = :region_id
+        AND date >= CURRENT_DATE - INTERVAL '1 day' * :days
+        ORDER BY date ASC
+    """)
 
-    # Generate temperature and pH data
-    temperatures = [26.5 + i * 0.1 for i in range(len(dates))]
-    ph_values = [8.1 - i * 0.01 for i in range(len(dates))]
-    forecasts = [score + 1.5 for score in ohi_scores]
+    result = db.execute(query, {"region_id": region_id, "days": days})
+
+    dates = []
+    ohi_scores = []
+    temperatures = []
+    ph_values = []
+    forecasts = []
+
+    for row in result:
+        dates.append(row.date.isoformat() if row.date else None)
+        ohi_scores.append(row.ohi_score or 0.0)
+        temperatures.append(row.temperature or 0.0)
+        ph_values.append(row.ph or 0.0)
+        forecasts.append(row.forecasted_score or 0.0)
+
+    # If no data, return empty arrays
+    if not dates:
+        dates = []
+        ohi_scores = []
+        temperatures = []
+        ph_values = []
+        forecasts = []
 
     return {
         "dates": dates,
@@ -35,6 +67,57 @@ async def get_ocean_health_index(
 
 @router.get("/statistics")
 async def get_statistics(db: Session = Depends(get_db)):
-    """Get overall platform statistics - DEMO MODE with hardcoded data"""
+    """Get overall platform statistics from database"""
 
-    return DEMO_STATS
+    # Count active vessels (last 24 hours)
+    vessels_query = text("""
+        SELECT COUNT(DISTINCT mmsi) as count
+        FROM vessel_tracks
+        WHERE timestamp > NOW() - INTERVAL '24 hours'
+    """)
+    vessels_result = db.execute(vessels_query).fetchone()
+    active_vessels = vessels_result.count if vessels_result else 0
+
+    # Count dark vessels
+    dark_vessels_query = text("""
+        SELECT COUNT(DISTINCT mmsi) as count
+        FROM vessel_tracks
+        WHERE is_dark = true
+        AND timestamp > NOW() - INTERVAL '24 hours'
+    """)
+    dark_vessels_result = db.execute(dark_vessels_query).fetchone()
+    dark_vessels = dark_vessels_result.count if dark_vessels_result else 0
+
+    # Count pollution events (last 7 days)
+    pollution_query = text("""
+        SELECT COUNT(*) as count
+        FROM pollution_events
+        WHERE detected_at > NOW() - INTERVAL '7 days'
+    """)
+    pollution_result = db.execute(pollution_query).fetchone()
+    pollution_events = pollution_result.count if pollution_result else 0
+
+    # Count MPAs
+    mpa_query = text("""
+        SELECT COUNT(*) as count
+        FROM marine_protected_areas
+    """)
+    mpa_result = db.execute(mpa_query).fetchone()
+    mpas_monitored = mpa_result.count if mpa_result else 0
+
+    # Calculate average OHI score (last 30 days)
+    ohi_query = text("""
+        SELECT AVG(ohi_score) as avg_score
+        FROM ocean_health_metrics
+        WHERE date >= CURRENT_DATE - INTERVAL '30 days'
+    """)
+    ohi_result = db.execute(ohi_query).fetchone()
+    avg_ohi = round(ohi_result.avg_score, 1) if ohi_result and ohi_result.avg_score else 0.0
+
+    return {
+        "active_vessels": active_vessels,
+        "dark_vessels": dark_vessels,
+        "pollution_events": pollution_events,
+        "mpas_monitored": mpas_monitored,
+        "avg_ocean_health": avg_ohi,
+    }

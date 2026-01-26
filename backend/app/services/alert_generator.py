@@ -19,16 +19,16 @@ class AlertGenerator:
     def _get_vessel_history(self, mmsi: int, hours: int = 2) -> List[Tuple[float, float]]:
         """Retrieve recent position history for a vessel"""
         query = text("""
-            SELECT 
+            SELECT
                 ST_X(location::geometry) as lon,
                 ST_Y(location::geometry) as lat
             FROM vessel_tracks
             WHERE mmsi = :mmsi
-            AND timestamp > NOW() - INTERVAL ':hours hours'
+            AND timestamp > NOW() - INTERVAL '1 hour' * :hours
             ORDER BY timestamp ASC
             LIMIT 20
         """)
-        
+
         result = self.db.execute(query, {"mmsi": mmsi, "hours": hours})
         return [(row.lon, row.lat) for row in result]
     

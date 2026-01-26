@@ -11,12 +11,12 @@ from app.config import settings
 from app.models.vessel import VesselTrack
 from app.models.pollution import PollutionEvent
 from app.models.mpa import MarineProtectedArea
-from app.database import get_db
+from app.database import SessionLocal
 
 
 class MarineIntelligenceAssistant:
     """MIA - Marine Intelligence Assistant with Google Gemini"""
-    
+
     def __init__(self):
         genai.configure(api_key=settings.GEMINI_API_KEY)
         self.model = genai.GenerativeModel(
@@ -24,7 +24,7 @@ class MarineIntelligenceAssistant:
             system_instruction=self._build_system_prompt()
         )
         self.tools = self._define_tools()
-    
+
     def _build_system_prompt(self) -> str:
         return """You are MIA (Marine Intelligence Assistant), analyzing maritime data for BlueGuard Platform.
 
@@ -37,7 +37,7 @@ Core Principles:
 
 Capabilities:
 - Vessel tracking & anomaly detection
-- Pollution event analysis  
+- Pollution event analysis
 - Marine Protected Area compliance
 - Platform usage guidance"""
 
@@ -52,7 +52,6 @@ Capabilities:
                         parameters=genai.protos.Schema(
                             type=genai.protos.Type.OBJECT,
                             properties={
-                                "vessel_name": genai.protos.Schema(type=genai.protos.Type.STRING),
                                 "mmsi": genai.protos.Schema(type=genai.protos.Type.STRING),
                                 "vessel_type": genai.protos.Schema(type=genai.protos.Type.STRING),
                                 "timeframe": genai.protos.Schema(type=genai.protos.Type.STRING),
@@ -87,13 +86,24 @@ Capabilities:
                 ]
             )
         ]
-    
+
     async def process_message(self, message: str, conversation_history: List[Dict[str, str]] = None) -> Dict[str, Any]:
-        """Process user message"""
+        """Process user message with conversation memory"""
         try:
-            chat = self.model.start_chat(history=[])
+            # Convert conversation history to Gemini format
+            gemini_history = []
+            if conversation_history:
+                for entry in conversation_history:
+                    role = "user" if entry.get("role") == "user" else "model"
+                    gemini_history.append({
+                        "role": role,
+                        "parts": [{"text": entry.get("content", "")}]
+                    })
+
+            # Start chat with history to preserve context
+            chat = self.model.start_chat(history=gemini_history)
             response = chat.send_message(message, tools=self.tools)
-            
+
             # Check for function calls
             function_calls = []
             if response.candidates and response.candidates[0].content.parts:
@@ -101,7 +111,7 @@ Capabilities:
                     if hasattr(part, 'function_call') and part.function_call:
                         fc = part.function_call
                         function_calls.append({'name': fc.name, 'args': dict(fc.args)})
-            
+
             if not function_calls:
                 return {
                     "response": response.text,
@@ -109,13 +119,13 @@ Capabilities:
                     "data_confidence": 100,
                     "sources": ["MIA Knowledge Base"]
                 }
-            
+
             # Execute tools
             tool_results = []
             for fc in function_calls:
                 result = await self._execute_tool(fc['name'], fc['args'])
                 tool_results.append({"name": fc['name'], "arguments": fc['args'], "result": result})
-            
+
             # Get final response
             function_responses = [
                 genai.protos.Part(
@@ -126,16 +136,16 @@ Capabilities:
                 )
                 for r in tool_results
             ]
-            
+
             final_response = chat.send_message(genai.protos.Content(parts=function_responses))
-            
+
             return {
                 "response": final_response.text,
                 "tool_calls": tool_results,
                 "data_confidence": self._calculate_confidence(tool_results),
                 "sources": self._extract_sources(tool_results)
             }
-            
+
         except Exception as e:
             return {
                 "response": f"Error: {str(e)}. Please try rephrasing your question.",
@@ -144,7 +154,7 @@ Capabilities:
                 "sources": [],
                 "error": str(e)
             }
-    
+
     async def _execute_tool(self, function_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
         """Execute tool"""
         if function_name == "query_vessel_intel":
@@ -154,33 +164,56 @@ Capabilities:
         elif function_name == "get_mpa_compliance":
             return await self._get_mpa_compliance(**arguments)
         return {"error": f"Unknown function: {function_name}"}
-    
-    async def _query_vessel_intel(self, vessel_name=None, mmsi=None, vessel_type=None, timeframe="current", limit=50):
-        """Query vessels"""
-        with next(get_db()) as session:
+
+    async def _query_vessel_intel(self, mmsi=None, vessel_type=None, timeframe="current", limit=50):
+        """Query vessels using SessionLocal for proper session management"""
+        db = SessionLocal()
+        try:
             query = select(VesselTrack)
-            if vessel_name:
-                # VesselTrack doesn't have a name field, search by mmsi only
-                pass
+
             if mmsi:
-                query = query.where(VesselTrack.mmsi == mmsi)
+                # Handle both string and int MMSI
+                try:
+                    mmsi_int = int(mmsi)
+                    query = query.where(VesselTrack.mmsi == mmsi_int)
+                except (ValueError, TypeError):
+                    pass
+
             if vessel_type:
                 query = query.where(VesselTrack.vessel_type == vessel_type)
+
+            # Add timeframe filter
+            if timeframe == "current":
+                query = query.where(VesselTrack.timestamp > datetime.utcnow() - timedelta(hours=24))
+            elif timeframe == "week":
+                query = query.where(VesselTrack.timestamp > datetime.utcnow() - timedelta(days=7))
+
             query = query.limit(limit)
-            vessels = session.exec(query).all()
+            vessels = db.exec(query).all()
 
             return {
                 "total_vessels": len(vessels),
-                "vessels": [{"mmsi": v.mmsi, "type": v.vessel_type.value if v.vessel_type else None, "timestamp": str(v.timestamp)} for v in vessels[:10]],
+                "vessels": [{
+                    "mmsi": v.mmsi,
+                    "type": v.vessel_type.value if v.vessel_type else None,
+                    "timestamp": str(v.timestamp),
+                    "is_dark": v.is_dark,
+                    "risk_score": v.risk_score
+                } for v in vessels[:10]],
                 "source": "BlueGuard AIS Database"
             }
-    
+        finally:
+            db.close()
+
     async def _query_pollution_data(self, indicator="all", severity=None, timeframe="current", limit=50):
-        """Query pollution"""
-        with next(get_db()) as session:
+        """Query pollution using SessionLocal for proper session management"""
+        db = SessionLocal()
+        try:
             query = select(PollutionEvent)
+
             if indicator != "all":
                 query = query.where(PollutionEvent.type == indicator)
+
             if severity:
                 # severity is a float in the model, convert if needed
                 try:
@@ -188,36 +221,60 @@ Capabilities:
                     query = query.where(PollutionEvent.severity >= severity_float)
                 except (ValueError, TypeError):
                     pass
+
+            # Add timeframe filter
+            if timeframe == "current":
+                query = query.where(PollutionEvent.detected_at > datetime.utcnow() - timedelta(days=7))
+            elif timeframe == "month":
+                query = query.where(PollutionEvent.detected_at > datetime.utcnow() - timedelta(days=30))
+
             query = query.limit(limit)
-            events = session.exec(query).all()
+            events = db.exec(query).all()
 
             return {
                 "total_events": len(events),
-                "events": [{"type": e.type.value if e.type else None, "severity": e.severity} for e in events[:10]],
+                "events": [{
+                    "type": e.type.value if e.type else None,
+                    "severity": e.severity,
+                    "detected_at": str(e.detected_at),
+                    "confidence": e.confidence
+                } for e in events[:10]],
                 "source": "Copernicus Satellite Data"
             }
-    
+        finally:
+            db.close()
+
     async def _get_mpa_compliance(self, mpa_name=None, metric_type="all"):
-        """Get MPA data"""
-        with next(get_db()) as session:
+        """Get MPA data using SessionLocal for proper session management"""
+        db = SessionLocal()
+        try:
             query = select(MarineProtectedArea)
+
             if mpa_name:
                 query = query.where(MarineProtectedArea.name.ilike(f"%{mpa_name}%"))
-            mpas = session.exec(query).all()
+
+            mpas = db.exec(query).all()
 
             return {
                 "total_mpas": len(mpas),
-                "mpas": [{"name": m.name, "designation": m.designation, "country": m.country} for m in mpas[:10]],
+                "mpas": [{
+                    "name": m.name,
+                    "designation": m.designation,
+                    "country": m.country,
+                    "iucn_category": m.iucn_category
+                } for m in mpas[:10]],
                 "source": "BlueGuard MPA Database"
             }
-    
+        finally:
+            db.close()
+
     def _calculate_confidence(self, tool_results):
         """Calculate confidence"""
         if not tool_results:
             return 100
         has_errors = any("error" in r.get("result", {}) for r in tool_results)
         return 50 if has_errors else 90
-    
+
     def _extract_sources(self, tool_results):
         """Extract sources"""
         sources = set()

@@ -11,49 +11,67 @@ from app.models.mpa import MarineProtectedArea
 
 def load_sample_mpas():
     """Load sample MPA data (in production, would load from WDPA shapefile)"""
-    
+
     db = SessionLocal()
-    
-    # Sample MPAs (hardcoded for MVP)
+
+    # Sample MPAs for Indian Ocean region (Gulf of Mannar and Gulf of Kutch)
     sample_mpas = [
         {
-            "name": "Monterey Bay National Marine Sanctuary",
-            "designation": "National Marine Sanctuary",
-            "iucn_category": "IV",
-            "country": "USA",
-            "coordinates": [
-                [(-122.5, 36.5), (-121.5, 36.5), (-121.5, 37.5), (-122.5, 37.5), (-122.5, 36.5)]
-            ]
-        },
-        {
-            "name": "Channel Islands National Marine Sanctuary",
-            "designation": "National Marine Sanctuary",
+            "name": "Gulf of Mannar Marine National Park",
+            "designation": "Marine National Park",
             "iucn_category": "II",
-            "country": "USA",
+            "country": "India",
             "coordinates": [
-                [(-120.5, 33.5), (-119.0, 33.5), (-119.0, 34.5), (-120.5, 34.5), (-120.5, 33.5)]
+                [(78.8, 8.7), (79.3, 8.7), (79.3, 9.3), (78.8, 9.3), (78.8, 8.7)]
             ]
         },
         {
-            "name": "Papahānaumokuākea Marine National Monument",
-            "designation": "National Monument",
-            "iucn_category": "Ia",
-            "country": "USA",
+            "name": "Gulf of Kutch Marine National Park",
+            "designation": "Marine National Park",
+            "iucn_category": "II",
+            "country": "India",
             "coordinates": [
-                [(-179.0, 23.0), (-160.0, 23.0), (-160.0, 28.0), (-179.0, 28.0), (-179.0, 23.0)]
+                [(68.5, 22.2), (70.0, 22.2), (70.0, 23.0), (68.5, 23.0), (68.5, 22.2)]
+            ]
+        },
+        {
+            "name": "Malvan Marine Sanctuary",
+            "designation": "Marine Sanctuary",
+            "iucn_category": "IV",
+            "country": "India",
+            "coordinates": [
+                [(73.4, 15.9), (73.5, 15.9), (73.5, 16.1), (73.4, 16.1), (73.4, 15.9)]
+            ]
+        },
+        {
+            "name": "Pigeon Island National Park",
+            "designation": "National Park",
+            "iucn_category": "II",
+            "country": "Sri Lanka",
+            "coordinates": [
+                [(81.2, 8.7), (81.3, 8.7), (81.3, 8.8), (81.2, 8.8), (81.2, 8.7)]
+            ]
+        },
+        {
+            "name": "Bar Reef Marine Sanctuary",
+            "designation": "Marine Sanctuary",
+            "iucn_category": "IV",
+            "country": "Sri Lanka",
+            "coordinates": [
+                [(79.7, 8.3), (79.9, 8.3), (79.9, 8.5), (79.7, 8.5), (79.7, 8.3)]
             ]
         }
     ]
-    
+
     inserted = 0
-    
+
     try:
         for mpa_data in sample_mpas:
             from shapely.geometry import Polygon
-            
+
             polygon = Polygon(mpa_data['coordinates'][0])
             wkb_element = from_shape(polygon, srid=4326)
-            
+
             mpa = MarineProtectedArea(
                 name=mpa_data['name'],
                 designation=mpa_data['designation'],
@@ -61,13 +79,13 @@ def load_sample_mpas():
                 country=mpa_data['country'],
                 boundary=wkb_element
             )
-            
+
             db.add(mpa)
             inserted += 1
-        
+
         db.commit()
-        print(f"Loaded {inserted} Marine Protected Areas")
-        
+        print(f"Loaded {inserted} Marine Protected Areas in Indian Ocean region")
+
     except Exception as e:
         print(f"Error loading MPAs: {e}")
         db.rollback()

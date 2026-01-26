@@ -44,29 +44,35 @@ class PollutionDetector:
             print(f"Error loading YOLO model: {e}")
             self.model = None
     
-    async def detect(self, image_url: str) -> List[Dict]:
+    async def detect(self, image_url: str, metadata: dict = None) -> List[Dict]:
         """
         Detect pollution in satellite image
-        
+
         Args:
             image_url: URL to satellite image
-            
+            metadata: Optional metadata containing geographic bounds of the image
+                     Expected format: {"bounds": [min_lon, min_lat, max_lon, max_lat],
+                                      "width": image_width_px, "height": image_height_px}
+
         Returns:
-            List of detection results with bounding boxes and confidence
+            List of detection results with bounding boxes, confidence, and geographic coordinates
         """
         if self.model is None:
             return []
-        
+
         try:
             # Download image
             async with httpx.AsyncClient() as client:
                 response = await client.get(image_url, timeout=30.0)
                 response.raise_for_status()
                 image = Image.open(BytesIO(response.content))
-            
+
+            # Get image dimensions
+            img_width, img_height = image.size
+
             # Run inference
             results = self.model(image, conf=settings.POLLUTION_CONFIDENCE_THRESHOLD)
-            
+
             detections = []
             for result in results:
                 boxes = result.boxes
@@ -74,19 +80,61 @@ class PollutionDetector:
                     x1, y1, x2, y2 = box.xyxy[0].tolist()
                     confidence = float(box.conf[0])
                     class_id = int(box.cls[0])
-                    
-                    detections.append({
+
+                    detection = {
                         "bbox": [x1, y1, x2, y2],
                         "confidence": confidence,
                         "class": class_id,
                         "type": self._get_pollution_type(class_id)
-                    })
-            
+                    }
+
+                    # Convert pixel coordinates to geographic if metadata provided
+                    if metadata and "bounds" in metadata:
+                        geo_bbox = self._pixel_to_geo(
+                            [x1, y1, x2, y2],
+                            img_width,
+                            img_height,
+                            metadata["bounds"]
+                        )
+                        detection["geo_bbox"] = geo_bbox
+
+                    detections.append(detection)
+
             return detections
-            
+
         except Exception as e:
             print(f"Error in pollution detection: {e}")
             return []
+
+    def _pixel_to_geo(self, bbox_px: List[float], img_width: int, img_height: int,
+                      bounds: List[float]) -> List[float]:
+        """
+        Convert pixel bounding box to geographic coordinates
+
+        Args:
+            bbox_px: [x1, y1, x2, y2] in pixels
+            img_width: Image width in pixels
+            img_height: Image height in pixels
+            bounds: [min_lon, min_lat, max_lon, max_lat] of the image
+
+        Returns:
+            [min_lon, min_lat, max_lon, max_lat] of the detection
+        """
+        min_lon, min_lat, max_lon, max_lat = bounds
+        x1, y1, x2, y2 = bbox_px
+
+        # Calculate degrees per pixel
+        lon_per_px = (max_lon - min_lon) / img_width
+        lat_per_px = (max_lat - min_lat) / img_height
+
+        # Convert pixel coords to geographic coords
+        # Note: y increases downward in image coordinates but upward in geographic
+        geo_min_lon = min_lon + (x1 * lon_per_px)
+        geo_max_lon = min_lon + (x2 * lon_per_px)
+        geo_max_lat = max_lat - (y1 * lat_per_px)
+        geo_min_lat = max_lat - (y2 * lat_per_px)
+
+        return [geo_min_lon, geo_min_lat, geo_max_lon, geo_max_lat]
     
     def _get_pollution_type(self, class_id: int) -> str:
         """Map class ID to pollution type"""
