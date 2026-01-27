@@ -4,6 +4,7 @@ from app.database import get_db
 from typing import List, Optional
 from pydantic import BaseModel
 from datetime import datetime
+import uuid
 from app.services.alert_generator import AlertGenerator
 
 router = APIRouter()
@@ -66,8 +67,12 @@ async def get_alerts(
         severity_map = {"critical": "HIGH", "high": "HIGH", "medium": "MEDIUM", "low": "LOW"}
         severity_upper = severity_map.get(alert["severity"], "MEDIUM")
 
+        # Generate unique alert ID using UUID to prevent collisions
+        # when same vessel triggers multiple alerts of the same type
+        alert_id = f"{alert['type']}_{alert['mmsi']}_{uuid.uuid4().hex[:8]}"
+
         alerts.append({
-            "id": f"{alert['type']}_{alert['mmsi']}_{alert.get('mpa_id', 0)}",
+            "id": alert_id,
             "type": alert["type"],
             "severity": severity_upper,
             "title": title,

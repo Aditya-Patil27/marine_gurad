@@ -4,6 +4,13 @@ from sqlmodel import SQLModel, Session
 from typing import Generator
 from app.config import settings
 
+# Validate DATABASE_URL before creating engine
+if not settings.DATABASE_URL:
+    raise ValueError(
+        "DATABASE_URL must be set. Please configure it in your .env file. "
+        "Example: DATABASE_URL=postgresql://user:password@host:5432/dbname"
+    )
+
 engine = create_engine(
     settings.DATABASE_URL,
     pool_pre_ping=True,

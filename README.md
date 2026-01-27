@@ -533,6 +533,296 @@ We welcome contributions! Please:
 - **Protected Planet** - MPA boundary data
 - **Ocean Health Index** - Ecosystem health metrics
 
+---
+
+## 🔑 API Keys & Configuration
+
+### Required API Keys
+
+| Service | Purpose | Get Key |
+|---------|---------|---------|
+| **Supabase** | PostgreSQL database hosting | [supabase.com](https://supabase.com) |
+| **Google Gemini** | MIA chatbot AI | [Google AI Studio](https://makersuite.google.com/app/apikey) |
+| **Copernicus Marine** | Satellite ocean data | [Copernicus Data Store](https://data.marine.copernicus.eu/register) |
+
+### Environment Variables
+
+Create a `.env` file in the `backend/` directory:
+
+```env
+# Database (Supabase PostgreSQL with PostGIS)
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your-anon-key
+DATABASE_URL=postgresql://postgres:password@db.your-project.supabase.co:5432/postgres
+
+# Security
+SECRET_KEY=your-256-bit-secret-key
+JWT_SECRET=your-jwt-secret
+
+# Google Gemini API (required for MIA chatbot)
+GEMINI_API_KEY=your-gemini-api-key
+
+# Copernicus Marine Service API
+COPERNICUS_CLIENT_ID=your-copernicus-client-id
+COPERNICUS_CLIENT_SECRET=your-copernicus-client-secret
+
+# Model Configuration
+MODEL_STORAGE_BACKEND=local
+YOLO_MODEL_PATH=models/pollution_yolo.pt
+LSTM_MODEL_PATH=models/route_lstm.pt
+```
+
+---
+
+## 🧠 Model Training
+
+BlueGuard uses two ML models that need to be trained for production use:
+
+### 1. YOLO Pollution Detection Model
+
+The pollution detector uses YOLOv8 to identify oil spills, plastic debris, and algal blooms in satellite imagery.
+
+#### Dataset Preparation
+
+Create a dataset in YOLO format:
+
+```
+datasets/pollution/
+├── images/
+│   ├── train/
+│   │   ├── image001.jpg
+│   │   └── ...
+│   └── val/
+├── labels/
+│   ├── train/
+│   │   ├── image001.txt    # class x_center y_center width height
+│   │   └── ...
+│   └── val/
+└── data.yaml
+```
+
+**data.yaml:**
+```yaml
+path: ./datasets/pollution
+train: images/train
+val: images/val
+
+names:
+  0: OIL
+  1: PLASTIC
+  2: ALGAE
+```
+
+#### Training Script
+
+Create `scripts/train_yolo.py`:
+
+```python
+from ultralytics import YOLO
+import shutil
+
+# Load pretrained YOLOv8 model
+model = YOLO('yolov8n.pt')
+
+# Train on pollution dataset
+results = model.train(
+    data='datasets/pollution/data.yaml',
+    epochs=100,
+    imgsz=640,
+    batch=16,
+    name='pollution_yolo',
+    project='runs/detect'
+)
+
+# Copy trained model to models directory
+shutil.copy('runs/detect/pollution_yolo/weights/best.pt', 'models/pollution_yolo.pt')
+print("Model saved to models/pollution_yolo.pt")
+```
+
+Run training:
+```bash
+cd backend
+python scripts/train_yolo.py
+```
+
+### 2. LSTM Route Prediction Model
+
+The route predictor uses an LSTM neural network to forecast vessel trajectories.
+
+#### Dataset Preparation
+
+Create `scripts/prepare_lstm_data.py`:
+
+```python
+import numpy as np
+from app.database import SessionLocal
+from app.models.vessel import VesselTrack
+from sqlmodel import select
+from geoalchemy2.shape import to_shape
+
+def prepare_trajectory_data(sequence_length=10, prediction_steps=6):
+    """Extract trajectory sequences from AIS database"""
+    db = SessionLocal()
+
+    query = select(VesselTrack).order_by(VesselTrack.mmsi, VesselTrack.timestamp)
+    tracks = db.exec(query).all()
+
+    sequences, targets = [], []
+    current_mmsi, current_positions = None, []
+
+    for track in tracks:
+        if track.mmsi != current_mmsi:
+            current_mmsi = track.mmsi
+            current_positions = []
+
+        # Extract coordinates from geometry
+        point = to_shape(track.location)
+        current_positions.append([point.x, point.y])
+
+        # Create sequences when enough positions available
+        if len(current_positions) >= sequence_length + prediction_steps:
+            seq = current_positions[-sequence_length-prediction_steps:-prediction_steps]
+            target = current_positions[-prediction_steps:]
+            sequences.append(seq)
+            targets.append(target)
+
+    db.close()
+    return np.array(sequences), np.array(targets)
+
+if __name__ == "__main__":
+    X, y = prepare_trajectory_data()
+    np.save('datasets/lstm/X_train.npy', X)
+    np.save('datasets/lstm/y_train.npy', y)
+    print(f"Saved {len(X)} trajectory sequences")
+```
+
+#### Training Script
+
+Create `scripts/train_lstm.py`:
+
+```python
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torch.utils.data import DataLoader, TensorDataset
+import numpy as np
+from app.services.route_predictor import VesselLSTM
+
+# Load data
+X = np.load('datasets/lstm/X_train.npy')
+y = np.load('datasets/lstm/y_train.npy')
+
+# Normalize
+mean, std = X.mean(axis=(0, 1)), X.std(axis=(0, 1)) + 1e-6
+X_norm = (X - mean) / std
+y_norm = (y - mean) / std
+
+# Create dataloader
+dataset = TensorDataset(torch.FloatTensor(X_norm), torch.FloatTensor(y_norm[:, 0, :]))
+dataloader = DataLoader(dataset, batch_size=32, shuffle=True)
+
+# Train
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
+model = VesselLSTM(input_size=2, hidden_size=64, num_layers=2, output_size=2).to(device)
+criterion, optimizer = nn.MSELoss(), optim.Adam(model.parameters(), lr=0.001)
+
+for epoch in range(100):
+    model.train()
+    total_loss = 0
+    for batch_X, batch_y in dataloader:
+        optimizer.zero_grad()
+        loss = criterion(model(batch_X.to(device)), batch_y.to(device))
+        loss.backward()
+        optimizer.step()
+        total_loss += loss.item()
+
+    if (epoch + 1) % 10 == 0:
+        print(f'Epoch [{epoch+1}/100], Loss: {total_loss/len(dataloader):.6f}')
+
+torch.save(model.state_dict(), 'models/route_lstm.pt')
+print("Model saved to models/route_lstm.pt")
+```
+
+Run training:
+```bash
+cd backend
+mkdir -p datasets/lstm models
+python scripts/prepare_lstm_data.py
+python scripts/train_lstm.py
+```
+
+### Model Storage Options
+
+BlueGuard supports multiple storage backends for trained models:
+
+| Backend | Configuration | Use Case |
+|---------|--------------|----------|
+| **Local** | `MODEL_STORAGE_BACKEND=local` | Development, single server |
+| **Supabase** | `MODEL_STORAGE_BACKEND=supabase` | Cloud deployment with Supabase |
+| **AWS S3** | `MODEL_STORAGE_BACKEND=s3` | Production cloud deployment |
+| **HTTP** | `MODEL_STORAGE_BACKEND=http` | CDN-hosted models |
+
+Example S3 configuration:
+```env
+MODEL_STORAGE_BACKEND=s3
+AWS_ACCESS_KEY_ID=your-access-key
+AWS_SECRET_ACCESS_KEY=your-secret-key
+AWS_S3_MODEL_BUCKET=blueguard-models
+YOLO_MODEL_REMOTE_PATH=pollution_yolo_v1.0.0.pt
+LSTM_MODEL_REMOTE_PATH=route_lstm_v1.0.0.pt
+```
+
+---
+
+## 📊 Data Ingestion
+
+### AIS Vessel Data
+
+Ingest AIS data from Marine Cadastre CSV files:
+
+```bash
+# Using command line argument
+python scripts/ingest_ais.py path/to/AIS_data.csv
+
+# Using environment variable
+export AIS_CSV_PATH=/path/to/AIS_data.csv
+python scripts/ingest_ais.py
+```
+
+**Expected CSV columns:**
+| Column | Type | Description |
+|--------|------|-------------|
+| `MMSI` | int | Maritime Mobile Service Identity (required) |
+| `LAT`, `LON` | float | Geographic coordinates (required) |
+| `BaseDateTime` | datetime | ISO8601 timestamp (required) |
+| `SOG`, `COG` | float | Speed/Course over ground |
+| `VesselType` | int | AIS vessel type code |
+| `VesselName` | string | Ship name |
+
+### Copernicus Satellite Data
+
+The Copernicus Marine Service provides ocean observation data. Use your credentials to access:
+
+- **Sea surface temperature** - Climate monitoring
+- **Chlorophyll concentration** - Algal bloom detection
+- **Ocean color** - Pollution identification
+- **Wave/current data** - Navigation assistance
+
+```python
+# Example: Fetching Copernicus data
+import requests
+
+auth_url = "https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect/token"
+response = requests.post(auth_url, data={
+    "grant_type": "client_credentials",
+    "client_id": "your-client-id",
+    "client_secret": "your-client-secret"
+})
+access_token = response.json()["access_token"]
+```
+
+---
+
 **Built with 💙 for the oceans**
 
 *BlueGuard - Protecting our blue planet through intelligent surveillance*

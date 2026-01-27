@@ -162,18 +162,22 @@ def store_ais_records(df: pd.DataFrame, batch_size: int = 1000):
 
 def main():
     """Main execution"""
-    # Default CSV path (can be overridden via command line)
+    import sys
+
+    # Priority: 1. Command line argument, 2. Environment variable, 3. Default path
     default_csv = Path(__file__).parent.parent / "AIS_2024_01_01.csv"
 
-    import sys
     if len(sys.argv) > 1:
         csv_path = sys.argv[1]
+    elif os.environ.get("AIS_CSV_PATH"):
+        csv_path = os.environ["AIS_CSV_PATH"]
     else:
         csv_path = str(default_csv)
 
     if not os.path.exists(csv_path):
         print(f"Error: CSV file not found at {csv_path}")
         print("Usage: python ingest_ais.py [path_to_csv]")
+        print("   Or: Set AIS_CSV_PATH environment variable")
         sys.exit(1)
 
     print("Starting AIS data ingestion...")

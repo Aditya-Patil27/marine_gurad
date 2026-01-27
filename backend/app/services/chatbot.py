@@ -18,12 +18,33 @@ class MarineIntelligenceAssistant:
     """MIA - Marine Intelligence Assistant with Google Gemini"""
 
     def __init__(self):
+        self._model = None
+        self._configured = False
+        self.tools = self._define_tools()
+
+    def _ensure_configured(self):
+        """Lazily configure Gemini API to avoid startup crashes if key is missing"""
+        if self._configured:
+            return
+
+        if not settings.GEMINI_API_KEY:
+            raise ValueError(
+                "GEMINI_API_KEY must be set to use the MIA chatbot. "
+                "Please configure it in your .env file."
+            )
+
         genai.configure(api_key=settings.GEMINI_API_KEY)
-        self.model = genai.GenerativeModel(
+        self._model = genai.GenerativeModel(
             model_name='gemini-1.5-pro',
             system_instruction=self._build_system_prompt()
         )
-        self.tools = self._define_tools()
+        self._configured = True
+
+    @property
+    def model(self):
+        """Get the Gemini model, configuring on first access"""
+        self._ensure_configured()
+        return self._model
 
     def _build_system_prompt(self) -> str:
         return """You are MIA (Marine Intelligence Assistant), analyzing maritime data for BlueGuard Platform.

@@ -121,15 +121,26 @@ async def ingest_satellite_image(
             try:
                 # Create polygon from bounding box (scaled to geo coordinates)
                 # In production, this would use proper satellite image georeferencing
+                # with actual GeoTIFF metadata or image corner coordinates
                 bbox = detection.get("bbox", [0, 0, 1, 1])
-                scale = 0.001  # Approximate degree scale for bbox
-                
-                polygon = box(
-                    longitude + bbox[0] * scale,
-                    latitude + bbox[1] * scale,
-                    longitude + bbox[2] * scale,
-                    latitude + bbox[3] * scale
-                )
+
+                # Validate bbox has 4 values
+                if not isinstance(bbox, (list, tuple)) or len(bbox) != 4:
+                    print(f"Invalid bbox format: {bbox}, skipping detection")
+                    continue
+
+                # Scale factor: converts pixel coordinates to approximate degrees
+                # This is a placeholder - production should use actual image georeferencing
+                # A typical Sentinel-2 pixel at 10m resolution covers ~0.00009 degrees
+                scale = 0.0001  # ~10m per pixel approximation
+
+                # Ensure coordinates are within valid geographic bounds
+                min_lon = max(-180, min(180, longitude + bbox[0] * scale))
+                min_lat = max(-90, min(90, latitude + bbox[1] * scale))
+                max_lon = max(-180, min(180, longitude + bbox[2] * scale))
+                max_lat = max(-90, min(90, latitude + bbox[3] * scale))
+
+                polygon = box(min_lon, min_lat, max_lon, max_lat)
                 wkb_polygon = from_shape(polygon, srid=4326)
                 
                 # Map detection type to enum
