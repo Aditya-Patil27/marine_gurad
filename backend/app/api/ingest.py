@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Body
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.models.vessel import VesselTrack, VesselType
+from app.models.vessel import VesselTrack, VesselType, get_vessel_type_from_code
 from app.models.pollution import PollutionEvent, PollutionType
 from app.services.pollution_detector import PollutionDetector
 from pydantic import BaseModel
@@ -12,18 +12,31 @@ from shapely.geometry import Point, box
 
 router = APIRouter()
 
+
 class AISRecord(BaseModel):
     mmsi: int
     latitude: float
     longitude: float
     timestamp: datetime
-    vessel_type: Optional[str] = None
+    vessel_type: Optional[int] = None  # AIS numeric code
     flag: Optional[str] = None
-    speed: Optional[float] = None
-    course: Optional[float] = None
+    speed: Optional[float] = None  # SOG
+    course: Optional[float] = None  # COG
+    heading: Optional[float] = None
+    vessel_name: Optional[str] = None
+    imo: Optional[str] = None
+    callsign: Optional[str] = None
+    nav_status: Optional[int] = None
+    length: Optional[float] = None
+    width: Optional[float] = None
+    draft: Optional[float] = None
+    cargo: Optional[int] = None
+    transceiver_class: Optional[str] = None
+
 
 class AISBatch(BaseModel):
     records: List[AISRecord]
+
 
 @router.post("/ais")
 async def ingest_ais_data(
@@ -31,37 +44,57 @@ async def ingest_ais_data(
     db: Session = Depends(get_db)
 ):
     """Webhook endpoint to receive AIS data"""
-    
+
     inserted_count = 0
-    
+
     for record in batch.records:
         try:
             # Create point geometry
             point = Point(record.longitude, record.latitude)
             wkb_element = from_shape(point, srid=4326)
-            
+
+            # Convert vessel type code to enum
+            vessel_type = None
+            if record.vessel_type is not None:
+                vessel_type = get_vessel_type_from_code(record.vessel_type)
+
+            # Handle heading (511 = not available in AIS spec)
+            heading = record.heading
+            if heading is not None and heading == 511.0:
+                heading = None
+
             # Create vessel track
             vessel_track = VesselTrack(
                 mmsi=record.mmsi,
-                vessel_type=record.vessel_type,
+                vessel_type=vessel_type,
                 flag=record.flag,
                 location=wkb_element,
                 timestamp=record.timestamp,
                 speed=record.speed,
                 course=record.course,
+                heading=heading,
+                vessel_name=record.vessel_name,
+                imo=record.imo,
+                callsign=record.callsign,
+                nav_status=record.nav_status,
+                length=record.length,
+                width=record.width,
+                draft=record.draft,
+                cargo=record.cargo,
+                transceiver_class=record.transceiver_class,
                 is_dark=False,  # Would calculate from gaps
                 risk_score=0.0  # Would calculate from ML model
             )
-            
+
             db.add(vessel_track)
             inserted_count += 1
-            
+
         except Exception as e:
             print(f"Error inserting AIS record {record.mmsi}: {e}")
             continue
-    
+
     db.commit()
-    
+
     return {
         "status": "success",
         "inserted": inserted_count,

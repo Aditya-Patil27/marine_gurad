@@ -74,7 +74,7 @@ async def get_vessels_layer(bbox: Optional[BoundingBox], db: Session):
     Fetch vessel tracks as GeoJSON from database.
     Uses database-level coordinate extraction for better performance.
     """
-    
+
     # Build query - PostgreSQL generates coordinates directly, avoiding Python-side geometry parsing
     if bbox:
         query = text("""
@@ -88,7 +88,17 @@ async def get_vessels_layer(bbox: Optional[BoundingBox], db: Session):
                 is_dark,
                 risk_score,
                 speed,
-                course
+                course,
+                heading,
+                vessel_name,
+                imo,
+                callsign,
+                nav_status,
+                length,
+                width,
+                draft,
+                cargo,
+                transceiver_class
             FROM vessel_tracks
             WHERE timestamp > NOW() - INTERVAL '1 hour'
             AND ST_Intersects(
@@ -110,12 +120,39 @@ async def get_vessels_layer(bbox: Optional[BoundingBox], db: Session):
                 is_dark,
                 risk_score,
                 speed,
-                course
+                course,
+                heading,
+                vessel_name,
+                imo,
+                callsign,
+                nav_status,
+                length,
+                width,
+                draft,
+                cargo,
+                transceiver_class
             FROM vessel_tracks
             WHERE timestamp > NOW() - INTERVAL '1 hour'
             ORDER BY timestamp DESC
         """)
         result = db.execute(query)
+
+    # Navigation status descriptions
+    nav_status_map = {
+        0: "Under way using engine",
+        1: "At anchor",
+        2: "Not under command",
+        3: "Restricted manoeuvrability",
+        4: "Constrained by draught",
+        5: "Moored",
+        6: "Aground",
+        7: "Engaged in fishing",
+        8: "Under way sailing",
+        9: "Reserved for HSC",
+        10: "Reserved for WIG",
+        14: "AIS-SART active",
+        15: "Not defined",
+    }
 
     # Build features directly without intermediate json.loads calls
     features = [
@@ -134,6 +171,17 @@ async def get_vessels_layer(bbox: Optional[BoundingBox], db: Session):
                 "risk_score": row.risk_score,
                 "speed": row.speed,
                 "course": row.course,
+                "heading": row.heading,
+                "vessel_name": row.vessel_name,
+                "imo": row.imo,
+                "callsign": row.callsign,
+                "nav_status": row.nav_status,
+                "nav_status_description": nav_status_map.get(row.nav_status, "Unknown") if row.nav_status is not None else None,
+                "length": row.length,
+                "width": row.width,
+                "draft": row.draft,
+                "cargo": row.cargo,
+                "transceiver_class": row.transceiver_class,
             }
         }
         for row in result
