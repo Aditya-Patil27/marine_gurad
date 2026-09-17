@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SamudraSense · Incident report</title>
+<link rel="stylesheet" href="samudra.css">
+<style>
+  .page { display: grid; grid-template-columns: 1fr 420px; min-height: 0; overflow: hidden; }
+  .docside { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+  .head { display: flex; align-items: center; gap: 12px; padding: 22px 32px 16px; }
+  .head h1 { font-size: 26px; }
+  .head .note { margin-left: auto; color: var(--muted); font-size: 13px; display: flex; align-items: center; gap: 8px; }
+  .fig-key { font: 500 12px var(--mono); background: var(--peri-soft); color: var(--navy); border-bottom: 2px solid var(--peri); padding: 0 4px; border-radius: 4px; }
+  .paper { width: 780px; margin: 0 auto; background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 40px 56px; font: 15px/1.65 var(--font); color: var(--ink); }
+  .paper .top { display: flex; justify-content: space-between; font: 500 12px var(--font); letter-spacing: .06em; color: var(--muted); padding-bottom: 14px; border-bottom: 2px solid var(--navy); }
+  .paper h2 { font: 700 23px/1.25 var(--head); margin: 18px 0 12px; }
+  .paper h3 { font: 600 12.5px var(--font); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 22px 0 6px; display: flex; align-items: center; gap: 8px; }
+  .paper p { margin: 0 0 10px; }
+  .fig { font: 500 13px var(--mono); background: var(--peri-soft); color: var(--navy); border-bottom: 2px solid var(--peri); padding: 0 4px; border-radius: 4px; white-space: nowrap; }
+  .fig.sel { box-shadow: 0 0 0 2px var(--navy); }
+  .fig.warn { background: #FDF3E1; color: #8A5606; border-bottom-color: #F2C27A; }
+  .by { font: 500 11px var(--font); text-transform: none; letter-spacing: 0; color: #5B4A9A; background: #EFEAFB; padding: 1px 7px; border-radius: 10px; }
+  .meta { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .meta td { padding: 7px 0; border-top: 1px solid var(--line); }
+  .meta td:first-child { color: var(--muted); width: 30%; }
+
+  .aside { background: #fff; border-left: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+  .sec { padding: 18px 22px; border-bottom: 1px solid var(--line); }
+  .sec h3 { font-size: 15px; margin-bottom: 10px; display: flex; align-items: center; }
+  .src { display: grid; grid-template-columns: 20px 1fr auto; gap: 10px; padding: 7px 0; align-items: start; }
+  .src .v { font: 500 13px var(--mono); }
+  .src .s { font-size: 12.5px; color: var(--faint); }
+  .src a { font-size: 13px; color: var(--navy-2); text-decoration: none; }
+  .recip { display: flex; align-items: center; gap: 10px; padding: 5px 0; font-size: 14px; }
+  .recip .k { width: 28px; font-size: 12px; color: var(--faint); }
+  .sign { margin-top: auto; padding: 18px 22px; border-top: 1px solid var(--line); background: var(--canvas); }
+  .cb { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; color: var(--ink); margin-bottom: 10px; }
+  .box { width: 18px; height: 18px; border: 1.5px solid #B9C1D6; border-radius: 5px; flex: none; margin-top: 2px; display: grid; place-items: center; background: #fff; }
+  .box.on { background: var(--navy); border-color: var(--navy); }
+</style>
+</head>
+<body>
+<div class="shell">
+  <nav class="rail">
+    <div class="logo"><svg class="i" viewBox="0 0 24 24" style="color:#fff"><path d="M3 15c2.2-1.6 4.4-1.6 6.6 0s4.4 1.6 6.6 0 3.6-1.2 4.8-.6"/><path d="M3 19c2.2-1.6 4.4-1.6 6.6 0s4.4 1.6 6.6 0 3.6-1.2 4.8-.6"/><circle cx="12" cy="8" r="3"/></svg></div>
+    <a href="01-command-map.html"><svg class="i" viewBox="0 0 24 24"><path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3Z"/><path d="M9 3v15M15 6v15"/></svg>Map</a>
+    <a href="02-alert-triage.html"><span class="badge">7</span><svg class="i" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg>Alerts</a>
+    <a href="03-vessel-evidence.html"><svg class="i" viewBox="0 0 24 24"><path d="M2 20c2 1 4 1 6 0s4-1 6 0 4 1 6 0"/><path d="M4 16 3 11h18l-2 5"/><path d="M12 11V3l5 5h-5"/></svg>Vessels</a>
+    <a class="on" href="#"><svg class="i" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg>Reports</a>
+    <a href="05-spill-simulator.html"><svg class="i" viewBox="0 0 24 24"><path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5S5 13 5 15a7 7 0 0 0 7 7Z"/></svg>Spills</a>
+    <div class="bottom">
+      <a href="#"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>Settings</a>
+      <span class="avatar">RK</span>
+    </div>
+  </nav>
+
+  <main class="page">
+    <div class="docside">
+      <div class="head">
+        <h1>Incident report</h1><span class="pill amber">Draft 2 · awaiting sign-off</span>
+        <span class="note"><span class="fig-key">6 h 12 m</span> figures come from the database. The local model only writes the sentences.</span>
+      </div>
+      <div class="paper">
+        <div class="top"><span>SAMUDRASENSE INCIDENT REPORT · IR-0917-004</span><span>FOR ENFORCEMENT USE</span></div>
+        <h2>Suspected illegal trawling and at-sea transfer, Gulf of Mannar Marine National Park</h2>
+        <table class="meta">
+          <tr><td>Vessel</td><td>Sea Pearl II · MMSI <span class="fig">419007431</span></td></tr>
+          <tr><td>Location</td><td><span class="fig">8°59′48″N 78°58′41″E</span>, <span class="fig">3.1 km</span> inside the 10 km park buffer</td></tr>
+          <tr><td>Period</td><td><span class="fig">17 Sep 2026 08:20</span> to <span class="fig">14:32 IST</span></td></tr>
+        </table>
+
+        <h3>Summary <span class="by">written by local model</span></h3>
+        <p>The vessel stopped transmitting AIS at <span class="fig">08:20</span> and stayed silent for <span class="fig sel">6 h 12 m</span>. A Sentinel-1 radar pass at <span class="fig">11:42</span> found a <span class="fig">24 m</span> hull with no AIS signal nearby, matching the registered length of Sea Pearl II (<span class="fig">23.4 m</span>).</p>
+        <p>While dark, it moved below <span class="fig">2 kn</span> for <span class="fig">2 h 40 m</span> and came within <span class="fig">410 m</span> of carrier MMSI <span class="fig">572118004</span> for <span class="fig">2 h 10 m</span>. Weather at the time (<span class="fig">14 kn</span> wind, <span class="fig">1.1 m</span> swell) does not explain the slow movement.</p>
+
+        <h3>Requested action</h3>
+        <p>Inspect Sea Pearl II on return to Tuticorin fishing harbour and identify the carrier vessel. Predicted arrival: <span class="fig warn">18:10 IST ± 40 min</span>.</p>
+      </div>
+    </div>
+
+    <aside class="aside">
+      <div class="sec">
+        <h3>Where each figure comes from <span class="faint" style="margin-left:auto;font:400 13px var(--font)">13 of 14 linked</span></h3>
+        <div class="src"><svg width="18" height="18" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="#E4F5EE"/><path d="m5 8.2 2 2 4-4.4" stroke="#1E9E6A" stroke-width="1.7" fill="none"/></svg><div><div class="v">6 h 12 m</div><div class="s">AIS gap record, 08:20:14 to 14:32:40</div></div><a href="03-vessel-evidence.html">View</a></div>
+        <div class="src"><svg width="18" height="18" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="#E4F5EE"/><path d="m5 8.2 2 2 4-4.4" stroke="#1E9E6A" stroke-width="1.7" fill="none"/></svg><div><div class="v">24 m hull</div><div class="s">Radar detection, 91% confidence</div></div><a href="03-vessel-evidence.html">View</a></div>
+        <div class="src"><svg width="18" height="18" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="#E4F5EE"/><path d="m5 8.2 2 2 4-4.4" stroke="#1E9E6A" stroke-width="1.7" fill="none"/></svg><div><div class="v">410 m · 2 h 10 m</div><div class="s">Encounter record, 500 m / 2 h rule</div></div><a href="03-vessel-evidence.html">View</a></div>
+        <div class="src"><svg width="18" height="18" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="#FDF3E1"/><path d="M8 4.5v4.5M8 11.5h.01" stroke="#D98A0B" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg><div><div class="v">18:10 IST ± 40 min</div><div class="s" style="color:#8A5606">A route prediction, not a measurement. Label it or remove it.</div></div><a>Label</a></div>
+      </div>
+      <div class="sec">
+        <h3>Send to</h3>
+        <div class="recip"><span class="k">To</span>Coast Guard Station, Mandapam</div>
+        <div class="recip"><span class="k">To</span>Wildlife Warden, Gulf of Mannar park</div>
+        <div class="recip"><span class="k">Cc</span>Fisheries Department, Tuticorin</div>
+      </div>
+      <div class="sec" style="border-bottom:0">
+        <h3>History</h3>
+        <div style="font-size:13px;color:var(--muted);line-height:1.9">
+          <span class="mono faint">14:33</span> Alert raised, risk 0.87<br>
+          <span class="mono faint">14:36</span> R. Kannan started review<br>
+          <span class="mono faint">14:41</span> Draft 1 written<br>
+          <span class="mono faint">14:47</span> Draft 2 written after edits
+        </div>
+      </div>
+      <div class="sign">
+        <div class="cb"><span class="box on"><svg width="11" height="11" viewBox="0 0 10 10"><path d="M1.5 5 4 7.5 8.5 2.5" stroke="#fff" stroke-width="1.7" fill="none"/></svg></span>I have checked the evidence and every figure.</div>
+        <div class="cb"><span class="box"></span>The arrival time is labelled as a prediction.</div>
+        <div style="display:flex;gap:10px;margin-top:12px">
+          <button class="btn primary" style="flex:1;opacity:.45">Sign and send</button>
+          <button class="btn">Reject</button>
+        </div>
+      </div>
+    </aside>
+  </main>
+</div>
+</body>
+</html>

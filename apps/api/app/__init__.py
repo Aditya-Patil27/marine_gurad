@@ -1,0 +1,1 @@
+"""SamudraSense Backend Application"""

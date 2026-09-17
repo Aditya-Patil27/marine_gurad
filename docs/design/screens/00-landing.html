@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SamudraSense · Climate-aware ocean protection</title>
+<link rel="stylesheet" href="samudra.css">
+<style>
+  body { background: #fff; font-size: 16px; }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 0 32px; }
+  header.site { position: sticky; top: 0; z-index: 10; background: rgba(255,255,255,.96); border-bottom: 1px solid var(--line); }
+  header.site .wrap { display: flex; align-items: center; height: 68px; gap: 36px; }
+  .brand { display: flex; align-items: center; gap: 10px; font: 700 20px var(--head); color: var(--navy); }
+  .brand .logo { width: 34px; height: 34px; border-radius: 9px; margin: 0; }
+  header.site nav a { color: var(--muted); text-decoration: none; margin-right: 26px; font-size: 15px; }
+  .eyebrow { font: 600 13px var(--font); letter-spacing: .1em; text-transform: uppercase; color: var(--navy-2); }
+  .hero { padding: 88px 0 0; text-align: center; }
+  .hero h1 { font: 700 64px/1.02 var(--head); letter-spacing: -.02em; margin: 18px auto 20px; max-width: 900px; }
+  .hero h1 span { color: #5E7BD6; }
+  .lede { font-size: 20px; line-height: 1.55; color: var(--muted); max-width: 700px; margin: 0 auto; }
+  .cta { display: flex; gap: 12px; justify-content: center; margin-top: 32px; }
+  .cta .btn { height: 48px; padding: 0 22px; font-size: 16px; border-radius: 11px; }
+  .shotband { margin-top: 64px; background: linear-gradient(180deg, #fff 0%, var(--peri-soft) 38%, var(--peri-soft) 100%); padding: 0 0 72px; }
+  .shot { border-radius: 16px; overflow: hidden; box-shadow: 0 2px 4px rgba(8,51,127,.06), 0 24px 60px rgba(8,51,127,.16); border: 1px solid var(--line); }
+  .shot img { display: block; width: 100%; }
+  section.band { padding: 96px 0; }
+  h2.big { font: 700 42px/1.1 var(--head); margin: 12px 0 16px; max-width: 760px; }
+  .sub { color: var(--muted); font-size: 18px; max-width: 640px; line-height: 1.6; margin: 0; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 48px; }
+  .stat { background: var(--navy); color: #fff; border-radius: 16px; padding: 30px 28px; }
+  .stat b { display: block; font: 700 52px/1 var(--head); }
+  .stat p { margin: 14px 0 12px; font-size: 16px; line-height: 1.5; color: #DCE3FF; }
+  .stat small { color: var(--peri); font-size: 13px; }
+  .verbs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 48px; }
+  .verb { border: 1px solid var(--line); border-radius: 16px; padding: 28px; }
+  .verb .n { font: 700 15px var(--head); color: #5E7BD6; }
+  .verb h3 { font-size: 28px; margin: 8px 0 12px; }
+  .verb ul { margin: 0; padding-left: 18px; color: var(--muted); line-height: 1.9; }
+  .xai { display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: center; }
+  .xcard { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 22px 24px; box-shadow: 0 16px 40px rgba(8,51,127,.10); }
+  .xrow { display: grid; grid-template-columns: 1fr 110px 50px; gap: 12px; align-items: center; padding: 9px 0; font-size: 15px; }
+  .xrow .bar { height: 9px; border-radius: 5px; background: var(--peri-soft); overflow: hidden; }
+  .xrow .bar i { display: block; height: 100%; background: var(--red); border-radius: 5px; }
+  .xrow .v { font: 500 14px var(--mono); text-align: right; }
+  .points { margin-top: 26px; display: grid; gap: 16px; }
+  .points > div { display: grid; grid-template-columns: 28px 1fr; gap: 12px; }
+  .points b { font-weight: 600; color: var(--ink); }
+  .points p { margin: 2px 0 0; color: var(--muted); line-height: 1.55; }
+  .tick { width: 26px; height: 26px; border-radius: 50%; background: var(--peri-soft); display: grid; place-items: center; }
+  .soft { background: var(--canvas); }
+  .road { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 48px; }
+  .road > div { background: #fff; border-radius: 16px; padding: 26px; border: 1px solid var(--line); }
+  .road .d { font: 600 13px var(--font); color: #5E7BD6; letter-spacing: .06em; }
+  .road h3 { font-size: 22px; margin: 6px 0 12px; }
+  .road ul { margin: 0; padding-left: 18px; color: var(--muted); line-height: 1.9; }
+  .road .done { background: var(--navy); border-color: var(--navy); }
+  .road .done h3, .road .done .d { color: #fff; }
+  .road .done ul { color: #DCE3FF; }
+  footer { border-top: 1px solid var(--line); padding: 32px 0 44px; color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<header class="site">
+  <div class="wrap">
+    <div class="brand"><span class="logo"><svg class="i" viewBox="0 0 24 24" style="color:#fff;width:18px;height:18px"><path d="M3 15c2.2-1.6 4.4-1.6 6.6 0s4.4 1.6 6.6 0 3.6-1.2 4.8-.6"/><path d="M3 19c2.2-1.6 4.4-1.6 6.6 0s4.4 1.6 6.6 0 3.6-1.2 4.8-.6"/><circle cx="12" cy="8" r="3"/></svg></span>SamudraSense</div>
+    <nav><a href="#how">How it works</a><a href="#why">Explainable AI</a><a href="#road">Roadmap</a></nav>
+    <a class="btn primary" href="01-command-map.html" style="margin-left:auto">Open the console</a>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="wrap">
+    <div class="eyebrow">Indradhanu IGC 2026 · AI for Climate Change</div>
+    <h1>Warming seas move the fish. <span>We see where illegal fleets follow.</span></h1>
+    <p class="lede">SamudraSense predicts where oceans are at risk, catches vessels that hide, and turns evidence into reports an officer can sign. It runs offline on a single workstation.</p>
+    <div class="cta"><a class="btn primary" href="01-command-map.html">See it in action</a><a class="btn" href="#how">How it works</a></div>
+  </div>
+</section>
+
+<div class="shotband">
+  <div class="wrap"><div class="shot"><img src="../shots/01-command-map.png" alt="SamudraSense map showing a flagged vessel in the Gulf of Mannar and why it was flagged"></div></div>
+</div>
+
+<section class="band">
+  <div class="wrap">
+    <div class="eyebrow">The problem</div>
+    <h2 class="big">The ocean is changing faster than anyone can watch it.</h2>
+    <div class="stats">
+      <div class="stat"><b>~90%</b><p>of the extra heat from global warming goes into the ocean, pushing fish into new waters.</p><small>IPCC AR6</small></div>
+      <div class="stat"><b>26 Mt</b><p>of fish may be caught illegally every year, worth up to US$23 billion.</p><small>FAO, upper estimate</small></div>
+      <div class="stat"><b>~75%</b><p>of industrial fishing vessels are not publicly tracked.</p><small>Nature, 2024</small></div>
+    </div>
+  </div>
+</section>
+
+<section class="band soft" id="how">
+  <div class="wrap">
+    <div class="eyebrow">How it works</div>
+    <h2 class="big">Predict. Detect. Act.</h2>
+    <div class="verbs">
+      <div class="verb"><span class="n">01</span><h3>Predict</h3><ul><li>Sea-temperature forecasts per grid cell</li><li>Rank where illegal fishing moves next</li><li>Scan only high-risk satellite tiles</li></ul></div>
+      <div class="verb"><span class="n">02</span><h3>Detect</h3><ul><li>Radar hulls with no AIS become dark vessels</li><li>Weather explains slow ships before alarms</li><li>Map who a dark ship met in 48 hours</li></ul></div>
+      <div class="verb"><span class="n">03</span><h3>Act</h3><ul><li>Evidence is hashed and kept</li><li>A local LLM drafts the report</li><li>Nothing is sent without an officer</li></ul></div>
+    </div>
+  </div>
+</section>
+
+<section class="band" id="why">
+  <div class="wrap xai">
+    <div>
+      <div class="eyebrow">Explainable by design</div>
+      <h2 class="big">Every alert says why.</h2>
+      <p class="sub">An officer can't board a boat because a model said 0.87. SamudraSense shows exactly what added up to the score, what it ruled out, and where every number came from.</p>
+      <div class="points">
+        <div><span class="tick"><svg width="14" height="14" viewBox="0 0 16 16"><path d="m4 8.2 2.6 2.6L12 5.4" stroke="#08337F" stroke-width="2" fill="none"/></svg></span><div><b>The score is the explanation</b><p>Each behaviour adds points. No hidden weights.</p></div></div>
+        <div><span class="tick"><svg width="14" height="14" viewBox="0 0 16 16"><path d="m4 8.2 2.6 2.6L12 5.4" stroke="#08337F" stroke-width="2" fill="none"/></svg></span><div><b>Ruled out, not ignored</b><p>Storms and receiver outages are checked and shown.</p></div></div>
+        <div><span class="tick"><svg width="14" height="14" viewBox="0 0 16 16"><path d="m4 8.2 2.6 2.6L12 5.4" stroke="#08337F" stroke-width="2" fill="none"/></svg></span><div><b>Every figure has a source</b><p>A report can't be signed while any number is unlinked.</p></div></div>
+      </div>
+    </div>
+    <div class="xcard">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px"><span style="font:700 40px/1 var(--head);color:var(--red)">0.87</span><div><b style="font-weight:600">Sea Pearl II</b><div class="faint" style="font-size:13.5px">Why it was flagged</div></div></div>
+      <div class="xrow"><span>AIS switched off for 6 h</span><div class="bar"><i style="width:100%"></i></div><span class="v">+0.31</span></div>
+      <div class="xrow"><span>Radar hull, no AIS nearby</span><div class="bar"><i style="width:77%"></i></div><span class="v">+0.24</span></div>
+      <div class="xrow"><span>Met a carrier ship</span><div class="bar"><i style="width:58%"></i></div><span class="v">+0.18</span></div>
+      <div class="xrow"><span>Loitering in park buffer</span><div class="bar"><i style="width:45%"></i></div><span class="v">+0.14</span></div>
+      <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--line);color:var(--muted);font-size:14px">Ruled out: bad weather, AIS receiver outage</div>
+    </div>
+  </div>
+</section>
+
+<section class="band soft" id="road">
+  <div class="wrap">
+    <div class="eyebrow">Roadmap</div>
+    <h2 class="big">Starting with the Gulf of Mannar and the Gulf of Kutch.</h2>
+    <div class="road">
+      <div class="done"><span class="d">DONE</span><h3>BlueGuard v1</h3><ul><li>AIS tracking and risk scores</li><li>Route prediction</li><li>Alerts for 4 Indian protected areas</li></ul></div>
+      <div><span class="d">BY 10 NOV 2026</span><h3>Prototype</h3><ul><li>Radar + AIS fusion</li><li>Hotspot forecasts</li><li>Explainable alerts and weather triage</li></ul></div>
+      <div><span class="d">20–21 JAN 2027</span><h3>Grand finale</h3><ul><li>Local LLM reports</li><li>Spill simulator</li><li>Offline build on one RTX 3050</li></ul></div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap" style="display:flex;gap:24px;align-items:center">
+    <span><b style="color:var(--navy)">Team Code4Seas</b> · Adish Nair, Aditya Patil, Aditya Saraf, Lubdha Chaudhari, Nishida Datkar</span>
+    <span style="margin-left:auto" class="pill navy">SDG 14 · Life Below Water</span>
+    <span class="pill navy">SDG 13 · Climate Action</span>
+  </div>
+</footer>
+</body>
+</html>

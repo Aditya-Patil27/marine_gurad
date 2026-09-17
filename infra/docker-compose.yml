@@ -1,0 +1,101 @@
+# Run from the repo root: docker compose -f infra/docker-compose.yml up --build
+name: samudrasense
+
+services:
+  # Local PostGIS for development.
+  # To use Supabase instead, set DATABASE_URL in your shell or in infra/.env
+  # (postgresql://... connection string, NOT the https:// SUPABASE_URL).
+  postgres:
+    image: postgis/postgis:15-3.3
+    container_name: samudrasense_postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-samudra}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-samudra_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-samudrasense_db}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-samudra} -d ${POSTGRES_DB:-samudrasense_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: samudrasense_redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ../apps/api
+      dockerfile: Dockerfile
+    container_name: samudrasense_backend
+    # Apply database migrations before starting the API
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    ports:
+      - "8000:8000"
+    # API keys (GEMINI_API_KEY etc.) come from apps/api/.env; values under `environment` win
+    env_file:
+      - path: ../apps/api/.env
+        required: false
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://samudra:samudra_secret@postgres:5432/samudrasense_db}
+      REDIS_URL: redis://redis:6379/0
+      PYTHONUNBUFFERED: 1
+    volumes:
+      - ../apps/api:/app
+      - model_weights:/app/models
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  celery_worker:
+    build:
+      context: ../apps/api
+      dockerfile: Dockerfile
+    container_name: samudrasense_celery
+    command: celery -A app.tasks.celery_app worker --loglevel=info
+    env_file:
+      - path: ../apps/api/.env
+        required: false
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://samudra:samudra_secret@postgres:5432/samudrasense_db}
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - ../apps/api:/app
+      - model_weights:/app/models
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ../apps/web
+      dockerfile: Dockerfile
+    container_name: samudrasense_frontend
+    ports:
+      - "5173:5173"
+    environment:
+      # Browser calls /api on the frontend origin; Vite proxies to the backend container
+      API_PROXY_TARGET: http://backend:8000
+    volumes:
+      - ../apps/web:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  model_weights:

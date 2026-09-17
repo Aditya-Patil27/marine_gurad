@@ -1,1 +1,0 @@
-"""BlueGuard Backend Application"""
