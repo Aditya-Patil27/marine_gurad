@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import text, func
-from app.config import settings
+from app.services.risk_engine import ALERT_THRESHOLD
 from app.database import get_db
 from app.schemas.health import OHITimeSeries
 from app.models.health import OceanHealthMetric
@@ -81,14 +81,14 @@ def get_statistics(db: Session = Depends(get_db)):
     dark_vessels_result = db.execute(dark_vessels_query).fetchone()
     dark_vessels = dark_vessels_result.count if dark_vessels_result else 0
 
-    # Count high-risk vessels (the dashboard's "High Risk" tile)
+    # High-risk vessels use the same alert line as the risk engine
     high_risk_query = text("""
         SELECT COUNT(DISTINCT mmsi) as count
         FROM vessel_tracks
-        WHERE risk_score > :threshold
+        WHERE risk_score >= :threshold
         AND timestamp > NOW() - INTERVAL '24 hours'
     """)
-    high_risk_result = db.execute(high_risk_query, {"threshold": settings.IUU_RISK_THRESHOLD}).fetchone()
+    high_risk_result = db.execute(high_risk_query, {"threshold": ALERT_THRESHOLD}).fetchone()
     high_risk_vessels = high_risk_result.count if high_risk_result else 0
 
     # Count pollution events (last 7 days)

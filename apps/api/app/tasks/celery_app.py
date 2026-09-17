@@ -154,9 +154,14 @@ def batch_process_satellite_images(self, image_urls: list, metadata_list: list =
     }
 
 
-@celery_app.task(name="calculate_vessel_risk")
-def calculate_vessel_risk(mmsi: int):
-    """Background task to calculate vessel IUU risk score"""
-    # Would analyze vessel behavior patterns
-    print(f"Calculating risk for vessel: {mmsi}")
-    return {"mmsi": mmsi, "risk_score": 0.5}
+@celery_app.task(name="rescore_fleet")
+def rescore_fleet(hours: int = 24):
+    """Recompute explainable risk scores for every vessel seen in the window."""
+    from app.database import SessionLocal
+    from app.services.fleet import rescore_all
+
+    db = SessionLocal()
+    try:
+        return {"rescored": rescore_all(db, hours)}
+    finally:
+        db.close()

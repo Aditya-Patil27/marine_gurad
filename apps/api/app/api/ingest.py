@@ -4,6 +4,7 @@ from app.database import get_db
 from app.models.vessel import VesselTrack, VesselType, get_vessel_type_from_code
 from app.models.pollution import PollutionEvent, PollutionType
 from app.services.pollution_detector import PollutionDetector
+from app.services.fleet import rescore_all
 from pydantic import BaseModel
 from datetime import datetime
 from typing import List, Optional
@@ -82,8 +83,6 @@ def ingest_ais_data(
                 draft=record.draft,
                 cargo=record.cargo,
                 transceiver_class=record.transceiver_class,
-                is_dark=False,  # Would calculate from gaps
-                risk_score=0.0  # Would calculate from ML model
             )
 
             db.add(vessel_track)
@@ -95,9 +94,13 @@ def ingest_ais_data(
 
     db.commit()
 
+    # Scores depend on neighbours (encounters, receiver outages), so rescore the whole recent fleet
+    rescored = rescore_all(db) if inserted_count else 0
+
     return {
         "status": "success",
         "inserted": inserted_count,
+        "rescored": rescored,
         "total": len(batch.records)
     }
 

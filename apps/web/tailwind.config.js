@@ -1,75 +1,29 @@
 /** @type {import('tailwindcss').Config} */
-import typography from '@tailwindcss/typography'
-
+// Tokens mirror docs/design/screens/samudra.css so the app matches the signed-off screens.
 export default {
-  content: [
-    "./index.html",
-    "./src/**/*.{js,ts,jsx,tsx}",
-  ],
+  content: ['./index.html', './src/**/*.{js,jsx}'],
   theme: {
     extend: {
       colors: {
-        ocean: {
-          50: '#f0f9ff',
-          100: '#e0f2fe',
-          200: '#bae6fd',
-          300: '#7dd3fc',
-          400: '#38bdf8',
-          500: '#0ea5e9',
-          600: '#0284c7',
-          700: '#0369a1',
-          800: '#075985',
-          900: '#0c4a6e',
-          950: '#082f49',
-        },
-        premium: {
-          blue: {
-            50: '#eff6ff',
-            100: '#dbeafe',
-            200: '#bfdbfe',
-            300: '#93c5fd',
-            400: '#60a5fa',
-            500: '#3b82f6',
-            600: '#2563eb',
-            700: '#1d4ed8',
-            800: '#1e40af',
-            900: '#1e3a8a',
-            950: '#172554',
-          },
-          cyan: {
-            50: '#ecfeff',
-            100: '#cffafe',
-            200: '#a5f3fc',
-            300: '#67e8f9',
-            400: '#22d3ee',
-            500: '#06b6d4',
-            600: '#0891b2',
-            700: '#0e7490',
-            800: '#155e75',
-            900: '#164e63',
-          },
-          indigo: {
-            50: '#eef2ff',
-            100: '#e0e7ff',
-            200: '#c7d2fe',
-            300: '#a5b4fc',
-            400: '#818cf8',
-            500: '#6366f1',
-            600: '#4f46e5',
-            700: '#4338ca',
-            800: '#3730a3',
-            900: '#312e81',
-          }
-        }
+        navy: { DEFAULT: '#08337F', 2: '#1F4CA3' },
+        peri: { DEFAULT: '#C1CBFF', soft: '#E6EAFF' },
+        ink: '#1B1F2A',
+        muted: '#56607A',
+        faint: '#8A93A8',
+        line: '#E3E7F0',
+        canvas: '#F5F7FB',
+        risk: { red: '#D64545', amber: '#D98A0B', green: '#1E9E6A' },
+        zone: '#A3339A',
+        storm: '#7C8AA5',
       },
-      backgroundImage: {
-        'gradient-ocean': 'linear-gradient(135deg, #0ea5e9 0%, #06b6d4 50%, #3b82f6 100%)',
-        'gradient-premium': 'linear-gradient(135deg, #1e40af 0%, #1e3a8a 50%, #172554 100%)',
-        'gradient-premium-light': 'linear-gradient(135deg, #3b82f6 0%, #2563eb 50%, #1d4ed8 100%)',
-        'gradient-radial': 'radial-gradient(circle, var(--tw-gradient-stops))',
-      }
+      fontFamily: {
+        head: ['"League Spartan"', 'Jost', 'sans-serif'],
+        sans: ['Jost', 'system-ui', 'sans-serif'],
+        mono: ['"IBM Plex Mono"', 'ui-monospace', 'monospace'],
+      },
+      borderRadius: { card: '12px', btn: '9px' },
+      boxShadow: { card: '0 1px 2px rgba(8,51,127,.06), 0 8px 24px rgba(8,51,127,.10)' },
     },
   },
-  // Styles the `prose` classes used by chat messages
-  plugins: [typography],
+  plugins: [],
 }

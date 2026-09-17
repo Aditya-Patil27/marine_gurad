@@ -64,7 +64,6 @@ class Settings(BaseSettings):
     
     # Thresholds
     POLLUTION_CONFIDENCE_THRESHOLD: float = 0.5
-    IUU_RISK_THRESHOLD: float = 0.7
     
     # CORS
     CORS_ORIGINS: list = ["http://localhost:5173", "http://localhost:3000"]

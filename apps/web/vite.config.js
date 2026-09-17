@@ -20,6 +20,13 @@ export default defineConfig({
       }
     }
   },
+  build: {
+    rollupOptions: {
+      // MapLibre is most of the bundle and changes rarely, so cache it separately
+      output: { manualChunks: { maplibre: ['maplibre-gl'] } },
+    },
+    chunkSizeWarningLimit: 1100,
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src')
