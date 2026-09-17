@@ -4,7 +4,7 @@
 
 SamudraSense predicts which waters are at risk, catches vessels that hide from tracking, and turns the evidence into reports that an officer signs off. It is designed to run offline on a single workstation.
 
-Built by **Team Code4Seas** (Adish Nair, Aditya Patil, Aditya Saraf, Lubdha Chaudhari, Nishida Datkar) for **Indradhanu IGC 2026**, track *AI for Climate Change: Ocean & Marine Protection*. It grows out of our earlier platform, BlueGuard.
+Built by **Team Code4Seas** (Adish Nair, Aditya Patil, Aditya Saraf) for **Indradhanu IGC 2026**, track *AI for Climate Change: Ocean & Marine Protection*. It grows out of our earlier platform, BlueGuard.
 
 > **Status (Sep 2026):** the BlueGuard v1 backend and dashboard in this repo work end to end. The screens for SamudraSense are designed and signed off in [docs/design](docs/design/DESIGN.md). The features listed under [The idea](#the-idea) are what we are building for the prototype (10 Nov 2026) and the finale (20–21 Jan 2027). They are not in the code yet.
 
