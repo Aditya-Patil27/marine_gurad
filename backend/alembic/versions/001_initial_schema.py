@@ -24,6 +24,9 @@ def upgrade() -> None:
     pollution_type_enum = ENUM('OIL', 'PLASTIC', 'ALGAE', name='pollutiontype', create_type=True)
     vessel_type_enum = ENUM('FISHING', 'CARGO', 'TANKER', 'PASSENGER', 'OTHER', name='vesseltype', create_type=True)
     
+    # Geometry columns use spatial_index=False because the GiST indexes are created
+    # explicitly below; GeoAlchemy2's automatic index would collide with them.
+
     # VesselTrack table
     op.create_table(
         'vessel_tracks',
@@ -31,7 +34,7 @@ def upgrade() -> None:
         sa.Column('mmsi', sa.Integer(), nullable=False, index=True),
         sa.Column('vessel_type', vessel_type_enum, nullable=True),
         sa.Column('flag', sa.String(3), nullable=True),
-        sa.Column('location', geoalchemy2.Geometry('POINT', srid=4326), nullable=False),
+        sa.Column('location', geoalchemy2.Geometry('POINT', srid=4326, spatial_index=False), nullable=False),
         sa.Column('timestamp', sa.DateTime(timezone=True), nullable=False, index=True),
         sa.Column('is_dark', sa.Boolean(), default=False),
         sa.Column('risk_score', sa.Float(), default=0.0),
@@ -47,7 +50,7 @@ def upgrade() -> None:
         sa.Column('type', pollution_type_enum, nullable=False),
         sa.Column('severity', sa.Float(), nullable=False),
         sa.Column('detected_at', sa.DateTime(timezone=True), nullable=False, index=True),
-        sa.Column('zone', geoalchemy2.Geometry('POLYGON', srid=4326), nullable=False),
+        sa.Column('zone', geoalchemy2.Geometry('POLYGON', srid=4326, spatial_index=False), nullable=False),
         sa.Column('image_source', sa.String(500), nullable=True),
         sa.Column('confidence', sa.Float(), nullable=True),
     )
@@ -59,7 +62,7 @@ def upgrade() -> None:
         sa.Column('id', sa.Integer(), primary_key=True, autoincrement=True),
         sa.Column('name', sa.String(255), nullable=False),
         sa.Column('designation', sa.String(100), nullable=True),
-        sa.Column('boundary', geoalchemy2.Geometry('POLYGON', srid=4326), nullable=False),
+        sa.Column('boundary', geoalchemy2.Geometry('POLYGON', srid=4326, spatial_index=False), nullable=False),
         sa.Column('iucn_category', sa.String(10), nullable=True),
         sa.Column('country', sa.String(100), nullable=True),
     )

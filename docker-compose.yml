@@ -1,25 +1,23 @@
-version: '3.8'
-
 services:
-  # Note: When using Supabase, you don't need local PostgreSQL
-  # Uncomment below only for local development without Supabase
-  
-  # postgres:
-  #   image: postgis/postgis:15-3.3
-  #   container_name: blueguard_postgres
-  #   environment:
-  #     POSTGRES_USER: ${POSTGRES_USER:-blueguard}
-  #     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-blueguard_secret}
-  #     POSTGRES_DB: ${POSTGRES_DB:-blueguard_db}
-  #   ports:
-  #     - "5432:5432"
-  #   volumes:
-  #     - postgres_data:/var/lib/postgresql/data
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "pg_isready -U blueguard"]
-  #     interval: 10s
-  #     timeout: 5s
-  #     retries: 5
+  # Local PostGIS for development.
+  # To use Supabase instead, set DATABASE_URL in your shell or a root .env file
+  # (postgresql://... connection string, NOT the https:// SUPABASE_URL).
+  postgres:
+    image: postgis/postgis:15-3.3
+    container_name: blueguard_postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-blueguard}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-blueguard_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-blueguard_db}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-blueguard} -d ${POSTGRES_DB:-blueguard_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:7-alpine
@@ -37,18 +35,24 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: blueguard_backend
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    # Apply database migrations before starting the API
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
     ports:
       - "8000:8000"
+    # API keys (GEMINI_API_KEY etc.) come from backend/.env; values under `environment` win
+    env_file:
+      - path: ./backend/.env
+        required: false
     environment:
-      # Use SUPABASE_URL env var for Supabase, or local postgres URL for development
-      DATABASE_URL: ${SUPABASE_URL:-postgresql://${POSTGRES_USER:-blueguard}:${POSTGRES_PASSWORD:-blueguard_secret}@host.docker.internal:5432/${POSTGRES_DB:-blueguard_db}}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://blueguard:blueguard_secret@postgres:5432/blueguard_db}
       REDIS_URL: redis://redis:6379/0
       PYTHONUNBUFFERED: 1
     volumes:
       - ./backend:/app
       - model_weights:/app/models
     depends_on:
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
 
@@ -58,15 +62,20 @@ services:
       dockerfile: Dockerfile
     container_name: blueguard_celery
     command: celery -A app.tasks.celery_app worker --loglevel=info
+    env_file:
+      - path: ./backend/.env
+        required: false
     environment:
-      # Use SUPABASE_URL env var for Supabase, or local postgres URL for development
-      DATABASE_URL: ${SUPABASE_URL:-postgresql://${POSTGRES_USER:-blueguard}:${POSTGRES_PASSWORD:-blueguard_secret}@host.docker.internal:5432/${POSTGRES_DB:-blueguard_db}}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://blueguard:blueguard_secret@postgres:5432/blueguard_db}
       REDIS_URL: redis://redis:6379/0
     volumes:
       - ./backend:/app
       - model_weights:/app/models
     depends_on:
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
   frontend:
     build:
@@ -76,7 +85,8 @@ services:
     ports:
       - "5173:5173"
     environment:
-      VITE_API_URL: http://localhost:8000
+      # Browser calls /api on the frontend origin; Vite proxies to the backend container
+      API_PROXY_TARGET: http://backend:8000
     volumes:
       - ./frontend:/app
       - /app/node_modules

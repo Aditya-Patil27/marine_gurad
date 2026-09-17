@@ -35,7 +35,7 @@ To safeguard our oceans through intelligent surveillance, predictive analytics, 
 - **4+ MPAs monitored** - Including Gulf of Mannar, Gulf of Kutch, Gahirmatha Sanctuary, and more
 
 ### 🤖 MIA - Marine Intelligence Assistant
-- **AI-powered chatbot** - Built with Google Gemini 1.5 Pro
+- **AI-powered chatbot** - Built with Google Gemini (default model: gemini-2.5-flash)
 - **Natural language queries** - Ask questions about vessels, pollution, or MPAs
 - **Data synthesis** - Combines AIS data, satellite imagery, and historical patterns
 - **Source attribution** - All answers cite data sources with confidence scores
@@ -152,7 +152,7 @@ To safeguard our oceans through intelligent surveillance, predictive analytics, 
 │  │  • Route Predictor (LSTM)                                 │  │
 │  │  • Pollution Detector (YOLOv8 + Ultralytics)             │  │
 │  │  • Alert Generator (Risk Scoring)                         │  │
-│  │  • MIA Chatbot (Google Gemini 1.5 Pro)                   │  │
+│  │  • MIA Chatbot (Google Gemini 2.5 Flash)                 │  │
 │  │  • Ocean Health Forecaster (Prophet)                      │  │
 │  └──────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────┘
@@ -259,7 +259,7 @@ blue_guard/
 ### AI/ML
 | Technology | Purpose |
 |------------|---------|
-| **Google Gemini 1.5 Pro** | Conversational AI for MIA chatbot |
+| **Google Gemini** | Conversational AI for MIA chatbot |
 | **PyTorch** | Deep learning framework |
 | **Ultralytics YOLOv8** | Object detection for pollution |
 | **Prophet (Facebook)** | Time-series forecasting |
@@ -286,7 +286,7 @@ blue_guard/
 
 ### Prerequisites
 - **Docker & Docker Compose** (recommended) OR
-- **Python 3.12+** and **Node.js 18+**
+- **Python 3.11 or 3.12** (PyTorch 2.2 has no wheels for newer Python) and **Node.js 20.19+**
 - **PostgreSQL 15** with **PostGIS 3.3** extension
 - **Redis 7**
 - **Google Gemini API Key** (for MIA chatbot)
@@ -295,26 +295,25 @@ blue_guard/
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/blue_guard.git
-   cd blue_guard
+   git clone https://github.com/Aditya-Patil27/marine_gurad.git
+   cd marine_gurad
    ```
 
 2. **Set up environment variables**
    ```bash
-   cp .env.example .env
+   cp backend/.env.example backend/.env
    ```
 
-   Edit `.env` and add:
+   Edit `backend/.env` and set:
    ```env
-   # Database (Supabase or local PostgreSQL)
-   DATABASE_URL=postgresql://user:password@localhost:5432/blueguard
-
    # Google Gemini API
    GEMINI_API_KEY=your_gemini_api_key_here
-
-   # Redis
-   REDIS_URL=redis://localhost:6379/0
+   GEMINI_MODEL=gemini-2.5-flash
    ```
+
+   Docker Compose starts a local PostGIS database and runs the Alembic migrations
+   automatically. To use Supabase instead, set `DATABASE_URL` (a `postgresql://`
+   connection string) in a root `.env` file or your shell.
 
 3. **Start all services**
    ```bash
@@ -348,8 +347,11 @@ blue_guard/
    createdb blueguard_db
    psql blueguard_db -c "CREATE EXTENSION postgis;"
 
-   # Run migrations (if using Alembic)
+   # Run migrations
    alembic upgrade head
+
+   # Optional: load sample Marine Protected Areas
+   python scripts/load_mpas.py
    ```
 
 4. **Run backend server**
@@ -372,7 +374,8 @@ blue_guard/
 
    Edit `frontend/.env`:
    ```env
-   VITE_API_URL=http://localhost:8000
+   # Empty = use the Vite dev proxy to http://127.0.0.1:8000
+   VITE_API_URL=
    VITE_MAP_CENTER_LAT=20.0
    VITE_MAP_CENTER_LNG=77.0
    VITE_MAP_ZOOM=4
@@ -471,7 +474,7 @@ See [DEMO_SETUP.md](DEMO_SETUP.md) for detailed instructions.
 
 ## 🧠 MIA - Marine Intelligence Assistant
 
-MIA is powered by **Google Gemini 1.5 Pro** and can answer:
+MIA is powered by **Google Gemini** (configurable via `GEMINI_MODEL`) and can answer:
 
 **Example Questions:**
 - "Show me all vessels near 20.5°N, 70.2°E"
