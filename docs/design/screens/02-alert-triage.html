@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SamudraSense · Alerts</title>
+<link rel="stylesheet" href="samudra.css">
+<style>
+  .page { overflow: hidden; display: flex; flex-direction: column; }
+  .head { display: flex; align-items: flex-end; gap: 16px; padding: 28px 32px 20px; }
+  .head h1 { font-size: 30px; }
+  .head p { margin: 4px 0 0; color: var(--muted); }
+  .head .tools { margin-left: auto; display: flex; gap: 10px; align-items: center; }
+  .search { width: 260px; height: 38px; display: flex; align-items: center; gap: 8px; padding: 0 12px; color: var(--faint); border: 1px solid var(--line); border-radius: 9px; background: #fff; }
+  .board { flex: 1; display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; padding: 0 32px 24px; min-height: 0; }
+  .lane { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+  .lane h2 { font: 600 15px var(--head); color: var(--ink); display: flex; align-items: center; gap: 8px; padding: 4px 2px 2px; }
+  .lane h2 .n { font: 500 13px var(--font); color: var(--faint); }
+  .lane .hint { font-size: 12.5px; color: var(--faint); margin: -6px 2px 2px; }
+  .a { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 14px 14px 12px; }
+  .a.sel { border-color: var(--navy); box-shadow: 0 0 0 3px var(--peri-soft); }
+  .a .t { display: flex; gap: 9px; align-items: flex-start; }
+  .a .t svg { margin-top: 4px; flex: none; }
+  .a b { font-weight: 500; font-size: 14.5px; line-height: 1.3; }
+  .a .why { color: var(--muted); font-size: 13px; margin: 6px 0 10px 21px; }
+  .a .f { display: flex; align-items: center; gap: 8px; margin-left: 21px; }
+  .score { font: 500 13px var(--mono); }
+  .reason { font-size: 12px; color: var(--muted); background: var(--canvas); border-radius: 6px; padding: 2px 7px; white-space: nowrap; }
+  .who { margin-left: auto; width: 24px; height: 24px; border-radius: 50%; background: var(--peri); color: var(--navy); font: 600 10px/24px var(--font); text-align: center; }
+  .muted-card { background: #FBFCFE; }
+  .strike { text-decoration: line-through; color: var(--faint); }
+  .more { text-align: center; font-size: 13px; color: var(--navy-2); padding: 6px; }
+</style>
+</head>
+<body>
+<div class="shell">
+  <nav class="rail">
+    <div class="logo"><svg class="i" viewBox="0 0 24 24" style="color:#fff"><path d="M3 15c2.2-1.6 4.4-1.6 6.6 0s4.4 1.6 6.6 0 3.6-1.2 4.8-.6"/><path d="M3 19c2.2-1.6 4.4-1.6 6.6 0s4.4 1.6 6.6 0 3.6-1.2 4.8-.6"/><circle cx="12" cy="8" r="3"/></svg></div>
+    <a href="01-command-map.html"><svg class="i" viewBox="0 0 24 24"><path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3Z"/><path d="M9 3v15M15 6v15"/></svg>Map</a>
+    <a class="on" href="#"><span class="badge">7</span><svg class="i" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg>Alerts</a>
+    <a href="03-vessel-evidence.html"><svg class="i" viewBox="0 0 24 24"><path d="M2 20c2 1 4 1 6 0s4-1 6 0 4 1 6 0"/><path d="M4 16 3 11h18l-2 5"/><path d="M12 11V3l5 5h-5"/></svg>Vessels</a>
+    <a href="04-incident-report.html"><svg class="i" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg>Reports</a>
+    <a href="05-spill-simulator.html"><svg class="i" viewBox="0 0 24 24"><path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5S5 13 5 15a7 7 0 0 0 7 7Z"/></svg>Spills</a>
+    <div class="bottom">
+      <a href="#"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>Settings</a>
+      <span class="avatar">RK</span>
+    </div>
+  </nav>
+
+  <main class="page">
+    <div class="head">
+      <div>
+        <h1>Alerts</h1>
+        <p>23 raised in the last 24 h. 9 explained by weather, 2 sent to the Coast Guard.</p>
+      </div>
+      <div class="tools">
+        <span class="chip on">All zones</span><span class="chip">Gulf of Mannar</span><span class="chip">Gulf of Kutch</span>
+        <div class="search"><svg class="i" viewBox="0 0 24 24" style="width:16px;height:16px"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Search alerts</div>
+      </div>
+    </div>
+
+    <div class="board">
+      <section class="lane">
+        <h2><span class="dot" style="width:8px;height:8px;border-radius:50%;background:var(--red)"></span>New <span class="n">7</span></h2>
+        <div class="a sel">
+          <div class="t"><svg width="12" height="12" viewBox="0 0 12 12"><circle cx="6" cy="6" r="4.5" fill="none" stroke="#D64545" stroke-width="2"/></svg><b>Sea Pearl II met an unknown carrier</b></div>
+          <div class="why">Dark for 6 h inside the park buffer</div>
+          <div class="f"><span class="score" style="color:var(--red)">0.87</span><span class="reason">Top reason: AIS off +0.31</span></div>
+        </div>
+        <div class="a">
+          <div class="t"><svg width="12" height="12" viewBox="0 0 12 12"><circle cx="6" cy="6" r="4.5" fill="none" stroke="#D64545" stroke-width="2"/></svg><b>Lakshmi Matha jumped 38 km</b></div>
+          <div class="why">Implied 30 kn. Vessel max is 11 kn</div>
+          <div class="f"><span class="score" style="color:var(--red)">0.72</span><span class="reason">Top reason: position jump +0.35</span></div>
+        </div>
+        <div class="a">
+          <div class="t"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M6 1 11 6 6 11 1 6Z" fill="none" stroke="#D98A0B" stroke-width="2"/></svg><b>Unidentified 31 m hull</b></div>
+          <div class="why">Radar only, in the top hotspot cell</div>
+          <div class="f"><span class="score" style="color:var(--amber)">0.64</span><span class="reason">Top reason: no AIS match +0.40</span></div>
+        </div>
+        <div class="more">4 more</div>
+      </section>
+
+      <section class="lane">
+        <h2><span style="width:8px;height:8px;border-radius:50%;border:1.5px dashed var(--storm)"></span>Explained by weather <span class="n">9</span></h2>
+        <div class="hint">Kept here, never deleted</div>
+        <div class="a muted-card">
+          <div class="t"><svg width="12" height="12" viewBox="0 0 12 12"><circle cx="6" cy="6" r="4.5" fill="none" stroke="#7C8AA5" stroke-width="2" stroke-dasharray="2.5 2"/></svg><b>Arul Jyothi loitering</b></div>
+          <div class="why">Sheltering from a 31 kn squall, swell 2.8 m</div>
+          <div class="f"><span class="score"><span class="strike">0.58</span> 0.29</span><a class="reason" style="color:var(--navy-2);text-decoration:none">Restore</a></div>
+        </div>
+        <div class="a muted-card">
+          <div class="t"><svg width="12" height="12" viewBox="0 0 12 12"><circle cx="6" cy="6" r="4.5" fill="none" stroke="#7C8AA5" stroke-width="2" stroke-dasharray="2.5 2"/></svg><b>St. Antony slowed near Manappad</b></div>
+          <div class="why">Same storm cell, 2 h below 2 kn</div>
+          <div class="f"><span class="score"><span class="strike">0.51</span> 0.25</span><a class="reason" style="color:var(--navy-2);text-decoration:none">Restore</a></div>
+        </div>
+        <div class="a" style="border-color:#F2C4C4">
+          <div class="t"><svg width="12" height="12" viewBox="0 0 12 12"><circle cx="6" cy="6" r="4.5" fill="none" stroke="#D64545" stroke-width="2"/></svg><b>AIS off during storm, near a park</b></div>
+          <div class="why">Storm near a protected area raises priority instead</div>
+          <div class="f"><span class="score" style="color:var(--red)">0.44 → 0.69</span><span class="pill red" style="height:22px">Escalated</span></div>
+        </div>
+      </section>
+
+      <section class="lane">
+        <h2><span style="width:8px;height:8px;border-radius:50%;background:var(--navy-2)"></span>In review <span class="n">4</span></h2>
+        <div class="a">
+          <div class="t"><svg width="12" height="12" viewBox="0 0 12 12"><circle cx="6" cy="6" r="4.5" fill="none" stroke="#D64545" stroke-width="2"/></svg><b>Mariyam met Global Reefer 7</b></div>
+          <div class="why">Reefer met 3 other fishing boats in 48 h</div>
+          <div class="f"><span class="score" style="color:var(--red)">0.81</span><span class="who">RK</span></div>
+        </div>
+        <div class="a">
+          <div class="t"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M6 1 11 6 6 11 1 6Z" fill="none" stroke="#D98A0B" stroke-width="2"/></svg><b>Three hulls in pair-trawl spacing</b></div>
+          <div class="why">Waiting on the next optical pass</div>
+          <div class="f"><span class="score" style="color:var(--amber)">0.62</span><span class="who">SM</span></div>
+        </div>
+      </section>
+
+      <section class="lane">
+        <h2><span style="width:8px;height:8px;border-radius:50%;background:var(--amber)"></span>Awaiting sign-off <span class="n">3</span></h2>
+        <div class="a">
+          <div class="t"><svg width="14" height="14" viewBox="0 0 24 24" style="stroke:#08337F;fill:none;stroke-width:2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/></svg><b>Illegal trawling, Gulf of Mannar park</b></div>
+          <div class="why">14 figures, all linked to evidence</div>
+          <div class="f"><a class="btn primary" href="04-incident-report.html" style="height:32px;padding:0 12px;font-size:13px">Review report</a><span class="faint" style="margin-left:auto;font-size:12.5px">42 min</span></div>
+        </div>
+        <div class="a">
+          <div class="t"><svg width="14" height="14" viewBox="0 0 24 24" style="stroke:#08337F;fill:none;stroke-width:2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/></svg><b>Unregistered hulls, Wadge Bank</b></div>
+          <div class="why" style="color:#8A5606">1 figure has no source. Sign-off blocked</div>
+          <div class="f"><a class="btn" style="height:32px;padding:0 12px;font-size:13px">Fix source</a><span class="faint" style="margin-left:auto;font-size:12.5px">18 min</span></div>
+        </div>
+      </section>
+
+      <section class="lane">
+        <h2><span style="width:8px;height:8px;border-radius:50%;background:var(--green)"></span>Sent <span class="n">2</span></h2>
+        <div class="a">
+          <div class="t"><svg width="14" height="14" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="#E4F5EE"/><path d="m5 8.2 2 2 4-4.4" stroke="#1E9E6A" stroke-width="1.7" fill="none"/></svg><b>Transshipment, Gulf of Kutch</b></div>
+          <div class="why">Signed by R. Kannan. Coast Guard replied 12:31</div>
+        </div>
+        <div class="a">
+          <div class="t"><svg width="14" height="14" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="#E4F5EE"/><path d="m5 8.2 2 2 4-4.4" stroke="#1E9E6A" stroke-width="1.7" fill="none"/></svg><b>Dark vessel, Palk Bay</b></div>
+          <div class="why">Signed by S. Mehta. Patrol boat tasked</div>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+</body>
+</html>

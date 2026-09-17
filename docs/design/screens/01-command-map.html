@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SamudraSense · Map</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="samudra.css">
+<style>
+  .stage { position: relative; }
+  #map { position: absolute; inset: 0; }
+  .float { position: absolute; z-index: 500; }
+
+  .topline { left: 20px; right: 20px; top: 18px; display: flex; gap: 10px; align-items: center; }
+  .search { width: 340px; height: 44px; display: flex; align-items: center; gap: 10px; padding: 0 14px; color: var(--faint); }
+  .status { margin-left: auto; height: 36px; display: flex; align-items: center; gap: 8px; padding: 0 14px; font-size: 13px; color: var(--muted); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
+
+  .queue { left: 20px; top: 76px; width: 340px; }
+  .qhead { display: flex; align-items: baseline; gap: 8px; padding: 16px 18px 10px; }
+  .qhead h2 { font-size: 19px; }
+  .qhead a { margin-left: auto; color: var(--navy-2); font-size: 13px; text-decoration: none; }
+  .alert { display: grid; grid-template-columns: 14px 1fr auto; gap: 12px; padding: 12px 18px; border-top: 1px solid var(--line); }
+  .alert.sel { background: var(--peri-soft); box-shadow: inset 3px 0 0 var(--navy); }
+  .alert b { font-weight: 500; display: block; }
+  .alert .why { font-size: 13px; color: var(--muted); }
+  .alert .score { font: 500 13px var(--mono); padding-top: 1px; }
+  .shape { margin-top: 5px; }
+
+  .detail { right: 20px; top: 76px; width: 400px; }
+  .dhead { padding: 18px 20px 14px; }
+  .dhead h2 { font-size: 24px; margin: 8px 0 2px; }
+  .risk { display: flex; align-items: center; gap: 12px; padding: 14px 20px 6px; border-top: 1px solid var(--line); }
+  .risk .big { font: 600 34px/1 var(--head); color: var(--red); }
+  .contrib { padding: 4px 20px 12px; }
+  .row { display: grid; grid-template-columns: 1fr 96px 44px; gap: 10px; align-items: center; padding: 7px 0; }
+  .row .l { font-size: 13.5px; }
+  .row .l small { display: block; font: 12px var(--mono); color: var(--faint); }
+  .bar { height: 8px; border-radius: 4px; background: var(--peri-soft); overflow: hidden; }
+  .bar i { display: block; height: 100%; background: var(--red); border-radius: 4px; }
+  .row .v { font: 500 13px var(--mono); text-align: right; color: var(--ink); }
+  .sub { padding: 12px 20px; border-top: 1px solid var(--line); }
+  .sub h3 { font-size: 14px; margin-bottom: 6px; }
+  .ok { display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--muted); padding: 3px 0; }
+  .actions { display: flex; gap: 10px; padding: 14px 20px 18px; border-top: 1px solid var(--line); }
+
+  .timeline { left: 380px; right: 440px; bottom: 20px; height: 74px; padding: 12px 18px; }
+  .legend { right: 440px; bottom: 108px; padding: 8px 12px; display: flex; gap: 14px; font-size: 12.5px; color: var(--muted); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+</style>
+</head>
+<body>
+<div class="shell">
+  <nav class="rail">
+    <div class="logo"><svg class="i" viewBox="0 0 24 24" style="color:#fff"><path d="M3 15c2.2-1.6 4.4-1.6 6.6 0s4.4 1.6 6.6 0 3.6-1.2 4.8-.6"/><path d="M3 19c2.2-1.6 4.4-1.6 6.6 0s4.4 1.6 6.6 0 3.6-1.2 4.8-.6"/><circle cx="12" cy="8" r="3"/></svg></div>
+    <a class="on" href="#"><svg class="i" viewBox="0 0 24 24"><path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3Z"/><path d="M9 3v15M15 6v15"/></svg>Map</a>
+    <a href="02-alert-triage.html"><span class="badge">7</span><svg class="i" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg>Alerts</a>
+    <a href="03-vessel-evidence.html"><svg class="i" viewBox="0 0 24 24"><path d="M2 20c2 1 4 1 6 0s4-1 6 0 4 1 6 0"/><path d="M4 16 3 11h18l-2 5"/><path d="M12 11V3l5 5h-5"/></svg>Vessels</a>
+    <a href="04-incident-report.html"><svg class="i" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg>Reports</a>
+    <a href="05-spill-simulator.html"><svg class="i" viewBox="0 0 24 24"><path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5S5 13 5 15a7 7 0 0 0 7 7Z"/></svg>Spills</a>
+    <div class="bottom">
+      <a href="#"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>Settings</a>
+      <span class="avatar">RK</span>
+    </div>
+  </nav>
+
+  <main class="stage">
+    <div id="map"></div>
+
+    <div class="float topline">
+      <div class="card search"><svg class="i" viewBox="0 0 24 24" style="width:18px;height:18px"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Search vessel, MMSI or place</div>
+      <span class="chip on"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M6 1 11 6 6 11 1 6Z" fill="none" stroke="#D98A0B" stroke-width="1.8"/></svg>Dark vessels</span>
+      <span class="chip on"><svg width="12" height="12" viewBox="0 0 12 12"><circle cx="6" cy="6" r="4.5" fill="none" stroke="#D64545" stroke-width="1.8"/></svg>Encounters</span>
+      <span class="chip on"><span style="width:11px;height:11px;border-radius:3px;background:#F2A36B"></span>Hotspots</span>
+      <span class="chip on"><span style="width:11px;height:11px;border-radius:3px;border:1.8px solid #A3339A"></span>Protected areas</span>
+      <span class="chip">Weather</span>
+      <span class="chip">All vessels</span>
+      <span class="card status"><span class="dot"></span>Offline · synced 14:32</span>
+    </div>
+
+    <section class="float card queue">
+      <div class="qhead"><h2>Needs attention</h2><span class="faint">7</span><a href="02-alert-triage.html">All alerts</a></div>
+      <div class="alert sel">
+        <svg class="shape" width="12" height="12" viewBox="0 0 12 12"><circle cx="6" cy="6" r="4.5" fill="none" stroke="#D64545" stroke-width="2"/></svg>
+        <div><b>Sea Pearl II met an unknown carrier</b><span class="why">Dark for 6 h, inside park buffer</span></div>
+        <span class="score" style="color:var(--red)">0.87</span>
+      </div>
+      <div class="alert">
+        <svg class="shape" width="12" height="12" viewBox="0 0 12 12"><circle cx="6" cy="6" r="4.5" fill="none" stroke="#D64545" stroke-width="2"/></svg>
+        <div><b>Lakshmi Matha jumped 38 km</b><span class="why">Implied 30 kn, vessel max 11 kn</span></div>
+        <span class="score" style="color:var(--red)">0.72</span>
+      </div>
+      <div class="alert">
+        <svg class="shape" width="12" height="12" viewBox="0 0 12 12"><path d="M6 1 11 6 6 11 1 6Z" fill="none" stroke="#D98A0B" stroke-width="2"/></svg>
+        <div><b>Unidentified 31 m hull</b><span class="why">Radar only, in top hotspot cell</span></div>
+        <span class="score" style="color:var(--amber)">0.64</span>
+      </div>
+      <div class="alert">
+        <svg class="shape" width="12" height="12" viewBox="0 0 12 12"><circle cx="6" cy="6" r="4.5" fill="none" stroke="#7C8AA5" stroke-width="2" stroke-dasharray="2.5 2"/></svg>
+        <div><b style="color:var(--muted)">Arul Jyothi loitering</b><span class="why">Sheltering from 31 kn squall · downgraded</span></div>
+        <span class="score faint">0.29</span>
+      </div>
+    </section>
+
+    <section class="float card detail">
+      <div class="dhead">
+        <div style="display:flex;gap:6px"><span class="pill red">Dark rendezvous</span><span class="pill zone">Gulf of Mannar park buffer</span></div>
+        <h2>Sea Pearl II</h2>
+        <div class="muted">Trawler · 23.4 m · Tuticorin · <span class="mono">MMSI 419007431</span></div>
+      </div>
+
+      <div class="risk"><span class="big">0.87</span><div><b style="font-weight:500">High risk</b><div class="faint" style="font-size:12.5px">Alert threshold 0.60</div></div></div>
+      <div class="contrib">
+        <div class="faint" style="font-size:12.5px;margin-bottom:2px">Why it was flagged. The score is the sum of these.</div>
+        <div class="row"><div class="l">AIS switched off<small>6.2 h · rule ≥ 4 h</small></div><div class="bar"><i style="width:100%"></i></div><span class="v">+0.31</span></div>
+        <div class="row"><div class="l">Radar hull, no AIS nearby<small>24 m · 91% sure</small></div><div class="bar"><i style="width:77%"></i></div><span class="v">+0.24</span></div>
+        <div class="row"><div class="l">Met a carrier ship<small>410 m apart · 2 h 10 m</small></div><div class="bar"><i style="width:58%"></i></div><span class="v">+0.18</span></div>
+        <div class="row"><div class="l">Loitering in park buffer<small>2 h 40 m below 2 kn</small></div><div class="bar"><i style="width:45%"></i></div><span class="v">+0.14</span></div>
+      </div>
+      <div class="sub">
+        <h3>Checked and ruled out</h3>
+        <div class="ok"><svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="#E4F5EE"/><path d="m5 8.2 2 2 4-4.4" stroke="#1E9E6A" stroke-width="1.7" fill="none"/></svg>Bad weather (wind 14 kn, swell 1.1 m)</div>
+        <div class="ok"><svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="#E4F5EE"/><path d="m5 8.2 2 2 4-4.4" stroke="#1E9E6A" stroke-width="1.7" fill="none"/></svg>AIS receiver outage (other vessels reporting)</div>
+      </div>
+      <div class="sub" style="background:var(--canvas)">
+        <h3>What would clear it</h3>
+        <div class="muted" style="font-size:13.5px">Score drops to <b class="mono" style="color:var(--ink)">0.45</b>, below the alert line, if AIS resumes within 4 h and no encounter is confirmed.</div>
+      </div>
+      <div class="actions">
+        <a class="btn primary" href="03-vessel-evidence.html" style="flex:1">Open evidence</a>
+        <a class="btn" href="04-incident-report.html">Draft report</a>
+      </div>
+    </section>
+
+    <div class="float card legend">
+      <span><svg width="12" height="12" viewBox="0 0 12 12"><path d="M6 1 10 11 6 8.5 2 11Z" fill="#56607A"/></svg>Tracked</span>
+      <span><svg width="12" height="12" viewBox="0 0 12 12"><path d="M6 1 11 6 6 11 1 6Z" fill="#fff" stroke="#D98A0B" stroke-width="1.8"/></svg>Radar only</span>
+      <span><svg width="12" height="12" viewBox="0 0 12 12"><circle cx="6" cy="6" r="4.5" fill="none" stroke="#D64545" stroke-width="1.8"/></svg>Flagged</span>
+    </div>
+
+    <div class="float card timeline"><svg id="tl" width="100%" height="50"></svg></div>
+  </main>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+const map = L.map('map', { zoomControl: false, attributionControl: true }).setView([8.95, 78.90], 9);
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}', { attribution: 'Basemap © Esri, GEBCO, NOAA', maxNativeZoom: 10, maxZoom: 13 }).addTo(map);
+
+// Hotspot cells: soft, few, only the top ranked
+[[8.50,78.75,.28],[8.50,79.00,.42],[8.75,79.00,.30],[8.25,79.00,.22],[8.50,78.50,.18]].forEach(([la, lo, o]) =>
+  L.rectangle([[la, lo], [la + .25, lo + .25]], { color: '#E07B3C', weight: 1, opacity: .5, fillColor: '#F2A36B', fillOpacity: o, interactive: false }).addTo(map));
+
+// Gulf of Mannar Marine National Park (indicative) + buffer
+const mnp = [[9.22,79.26],[9.17,79.05],[9.12,78.83],[9.03,78.58],[8.90,78.38],[8.75,78.23],[8.67,78.27],[8.79,78.43],[8.93,78.65],[9.03,78.89],[9.08,79.09],[9.14,79.29]];
+L.polygon(mnp, { color: '#A3339A', weight: 2, fillColor: '#A3339A', fillOpacity: .08 }).addTo(map);
+L.polygon([[9.35,79.43],[9.29,78.98],[9.13,78.48],[8.88,78.13],[8.55,78.13],[8.65,78.48],[8.85,78.83],[8.93,79.13],[9.03,79.43]], { color: '#A3339A', weight: 1.2, dashArray: '6 5', fill: false }).addTo(map);
+
+// Tracked vessels: calm grey arrows
+const arrow = (deg, c = '#56607A', s = 13) => L.divIcon({ className: '', iconSize: [s, s], iconAnchor: [s/2, s/2], html: `<svg width="${s}" height="${s}" viewBox="0 0 12 12" style="transform:rotate(${deg}deg)"><path d="M6 1 10 11 6 8.5 2 11Z" fill="${c}"/></svg>` });
+[[8.62,78.30,40],[8.41,78.64,210],[8.78,78.52,300],[9.35,79.05,90],[8.30,79.35,350],[8.95,79.45,170],[9.05,78.20,75],[8.20,78.95,230],[8.55,79.55,140],[9.48,78.80,260],[8.05,78.60,60]].forEach(([a,b,d]) => L.marker([a,b], { icon: arrow(d) }).addTo(map));
+
+// Selected vessel story
+L.polyline([[8.35,78.62],[8.48,78.72],[8.62,78.80],[8.78,78.88],[8.90,78.93]], { color: '#08337F', weight: 3, opacity: .85 }).addTo(map);
+L.polyline([[8.90,78.93],[9.00,78.97],[9.03,78.98]], { color: '#D64545', weight: 2.5, dashArray: '3 6' }).addTo(map);
+L.circleMarker([8.90,78.93], { radius: 4, color: '#fff', weight: 2, fillColor: '#08337F', fillOpacity: 1 }).addTo(map);
+L.marker([8.90,78.93], { icon: L.divIcon({ className: '', html: '<span class="maptag">AIS off 08:20</span>', iconAnchor: [110, 10] }) }).addTo(map);
+L.circleMarker([9.035,78.995], { radius: 22, color: '#D64545', weight: 2.2, fillColor: '#D64545', fillOpacity: .08 }).addTo(map);
+L.marker([9.03,78.98], { icon: L.divIcon({ className: '', iconSize: [16,16], iconAnchor: [8,8], html: '<svg width="16" height="16" viewBox="0 0 12 12"><path d="M6 1 11 6 6 11 1 6Z" fill="#fff" stroke="#D98A0B" stroke-width="1.8"/></svg>' }) }).addTo(map);
+L.marker([9.045,79.02], { icon: arrow(120, '#D64545', 15) }).addTo(map);
+L.marker([9.035,78.995], { icon: L.divIcon({ className: '', html: '<span class="maptag" style="color:#A82E2E">Met carrier · 410 m</span>', iconAnchor: [-28, 34] }) }).addTo(map);
+[[8.58,79.12],[8.18,79.02]].forEach(p => L.marker(p, { icon: L.divIcon({ className: '', iconSize: [13,13], iconAnchor: [6,6], html: '<svg width="13" height="13" viewBox="0 0 12 12"><path d="M6 1 11 6 6 11 1 6Z" fill="#fff" stroke="#D98A0B" stroke-width="1.8"/></svg>' }) }).addTo(map));
+L.marker([9.17, 78.52], { icon: L.divIcon({ className: '', html: '<span style="font:600 12px var(--head);letter-spacing:.06em;color:#7F2378;white-space:nowrap">GULF OF MANNAR MARINE NATIONAL PARK</span>' }) }).addTo(map);
+
+// Timeline (last 12 h)
+(function () {
+  const s = document.getElementById('tl'), W = s.getBoundingClientRect().width, ns = 'http://www.w3.org/2000/svg';
+  const el = (t, a, txt) => { const e = document.createElementNS(ns, t); for (const k in a) e.setAttribute(k, a[k]); if (txt) e.textContent = txt; s.appendChild(e); return e; };
+  const x = h => 8 + (h / 12) * (W - 16);
+  el('rect', { x: x(0), y: 16, width: x(5.8) - x(0), height: 8, rx: 4, fill: '#C1CBFF' });
+  el('rect', { x: x(5.8), y: 16, width: x(12) - x(5.8), height: 8, rx: 4, fill: '#FCEBEB', stroke: '#D64545', 'stroke-dasharray': '3 3' });
+  el('text', { x: x(5.9), y: 10, fill: '#A82E2E', 'font-size': 12, 'font-family': 'Jost' }, 'AIS silent 6 h 12 m');
+  el('path', { d: `M${x(9.2)} 13 l6 7 l-6 7 l-6 -7Z`, fill: '#fff', stroke: '#D98A0B', 'stroke-width': 1.8 });
+  el('text', { x: x(9.2) + 10, y: 10, fill: '#8A5606', 'font-size': 12, 'font-family': 'Jost' }, 'Radar pass 11:42');
+  [0, 3, 6, 9, 12].forEach(h => el('text', { x: x(h), y: 45, fill: '#8A93A8', 'font-size': 11.5, 'font-family': 'IBM Plex Mono', 'text-anchor': h === 0 ? 'start' : h === 12 ? 'end' : 'middle' }, h === 12 ? 'Now' : String(2 + h).padStart(2, '0') + ':30'));
+})();
+</script>
+</body>
+</html>

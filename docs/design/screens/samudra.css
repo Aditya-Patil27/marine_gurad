@@ -1,0 +1,63 @@
+/* SamudraSense light UI tokens. Matches the team deck: navy + periwinkle, League Spartan + Jost. */
+@import url('https://fonts.googleapis.com/css2?family=League+Spartan:wght@500;600;700&family=Jost:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+:root {
+  --navy: #08337F;
+  --navy-2: #1F4CA3;
+  --peri: #C1CBFF;
+  --peri-soft: #E6EAFF;
+  --ink: #1B1F2A;
+  --muted: #56607A;
+  --faint: #8A93A8;
+  --line: #E3E7F0;
+  --canvas: #F5F7FB;
+  --white: #FFFFFF;
+
+  /* State: colour + shape, never colour alone */
+  --red: #D64545;      /* confirmed signature */
+  --amber: #D98A0B;    /* radar hull, no AIS */
+  --green: #1E9E6A;    /* verified / ruled out */
+  --zone: #A3339A;     /* protected areas (chart magenta) */
+  --storm: #7C8AA5;    /* weather-downgraded */
+
+  --head: 'League Spartan', 'Jost', sans-serif;
+  --font: 'Jost', system-ui, sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --r: 12px;
+  --shadow: 0 1px 2px rgba(8,51,127,.06), 0 8px 24px rgba(8,51,127,.10);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { font: 14px/1.45 var(--font); color: var(--ink); background: var(--canvas); -webkit-font-smoothing: antialiased; }
+.mono { font-family: var(--mono); font-size: 12.5px; font-feature-settings: "tnum" 1; }
+.muted { color: var(--muted); }
+.faint { color: var(--faint); }
+h1, h2, h3 { font-family: var(--head); color: var(--navy); margin: 0; letter-spacing: -.005em; }
+.i { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+.card { background: var(--white); border-radius: var(--r); box-shadow: var(--shadow); }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 38px; padding: 0 16px; border-radius: 9px; border: 1px solid var(--line); background: var(--white); color: var(--navy); font: 500 14px var(--font); text-decoration: none; cursor: pointer; }
+.btn.primary { background: var(--navy); border-color: var(--navy); color: #fff; }
+.chip { display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 12px; border-radius: 16px; background: var(--white); border: 1px solid var(--line); color: var(--muted); font: 500 13px var(--font); white-space: nowrap; }
+.chip.on { background: var(--peri-soft); border-color: var(--peri); color: var(--navy); }
+.pill { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 9px; border-radius: 12px; font: 500 12px var(--font); white-space: nowrap; }
+.pill.red { background: #FCEBEB; color: #A82E2E; }
+.pill.amber { background: #FDF3E1; color: #8A5606; }
+.pill.zone { background: #F6E8F5; color: #7F2378; }
+.pill.green { background: #E4F5EE; color: #146B48; }
+.pill.navy { background: var(--peri-soft); color: var(--navy); }
+
+/* App shell: slim icon rail + full-bleed map */
+.shell { display: grid; grid-template-columns: 76px 1fr; height: 100vh; }
+.rail { background: var(--white); border-right: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; padding: 14px 0; gap: 6px; }
+.logo { width: 40px; height: 40px; border-radius: 11px; background: var(--navy); display: grid; place-items: center; margin-bottom: 14px; }
+.rail a { width: 62px; padding: 9px 0 7px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--muted); text-decoration: none; font: 500 11px var(--font); position: relative; }
+.rail a.on { background: var(--peri-soft); color: var(--navy); }
+.rail .badge { position: absolute; top: 4px; right: 10px; min-width: 17px; height: 17px; border-radius: 9px; background: var(--red); color: #fff; font: 600 10.5px/17px var(--font); text-align: center; padding: 0 4px; }
+.rail .bottom { margin-top: auto; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--peri); color: var(--navy); display: grid; place-items: center; font: 600 12px var(--font); }
+
+.leaflet-container { font-family: var(--font) !important; background: #BFD6E6 !important; }
+.leaflet-control-attribution { font-size: 10px !important; background: rgba(255,255,255,.75) !important; }
+.maptag { font: 500 11.5px var(--mono); color: var(--ink); background: #fff; padding: 2px 7px; border-radius: 6px; box-shadow: 0 1px 3px rgba(8,51,127,.18); white-space: nowrap; }

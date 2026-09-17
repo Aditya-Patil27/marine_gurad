@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SamudraSense · Spill simulator</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="samudra.css">
+<style>
+  .stage { position: relative; }
+  #map { position: absolute; inset: 0; }
+  .float { position: absolute; z-index: 500; }
+  .title { left: 20px; top: 18px; padding: 16px 20px; width: 360px; }
+  .title h1 { font-size: 22px; margin: 8px 0 2px; }
+  .panel { right: 20px; top: 18px; width: 390px; }
+  .sec { padding: 16px 20px; border-top: 1px solid var(--line); }
+  .sec:first-child { border-top: 0; }
+  .sec h2 { font-size: 15px; margin-bottom: 10px; }
+  .field { display: grid; grid-template-columns: 90px 1fr; align-items: center; gap: 10px; padding: 4px 0; font-size: 13.5px; color: var(--muted); }
+  .field span:last-child { height: 34px; display: flex; align-items: center; padding: 0 11px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); font-size: 13.5px; }
+  .hz { display: grid; grid-template-columns: 58px 1fr auto; gap: 10px; align-items: center; padding: 9px 0; border-top: 1px solid var(--line); font-size: 13.5px; }
+  .hz:first-of-type { border-top: 0; }
+  .hz .t { font: 600 14px var(--head); color: var(--navy); }
+  .sw { display: inline-block; width: 22px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+  .scrub { left: 20px; right: 430px; bottom: 20px; height: 72px; display: flex; align-items: center; gap: 18px; padding: 0 20px; }
+  .track { position: relative; flex: 1; height: 34px; }
+  .track .r { position: absolute; left: 0; right: 0; top: 10px; height: 4px; border-radius: 2px; background: var(--peri-soft); }
+  .track .f { position: absolute; left: 0; width: 50%; top: 10px; height: 4px; border-radius: 2px; background: var(--navy); }
+  .track .k { position: absolute; left: 50%; top: 3px; width: 18px; height: 18px; margin-left: -9px; border-radius: 50%; background: #fff; border: 3px solid var(--navy); }
+  .track .tk { position: absolute; top: 20px; transform: translateX(-50%); font: 12px var(--mono); color: var(--faint); white-space: nowrap; }
+  .legend { left: 20px; bottom: 108px; padding: 10px 14px; font-size: 12.5px; color: var(--muted); display: flex; gap: 16px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+</style>
+</head>
+<body>
+<div class="shell">
+  <nav class="rail">
+    <div class="logo"><svg class="i" viewBox="0 0 24 24" style="color:#fff"><path d="M3 15c2.2-1.6 4.4-1.6 6.6 0s4.4 1.6 6.6 0 3.6-1.2 4.8-.6"/><path d="M3 19c2.2-1.6 4.4-1.6 6.6 0s4.4 1.6 6.6 0 3.6-1.2 4.8-.6"/><circle cx="12" cy="8" r="3"/></svg></div>
+    <a href="01-command-map.html"><svg class="i" viewBox="0 0 24 24"><path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3Z"/><path d="M9 3v15M15 6v15"/></svg>Map</a>
+    <a href="02-alert-triage.html"><span class="badge">7</span><svg class="i" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg>Alerts</a>
+    <a href="03-vessel-evidence.html"><svg class="i" viewBox="0 0 24 24"><path d="M2 20c2 1 4 1 6 0s4-1 6 0 4 1 6 0"/><path d="M4 16 3 11h18l-2 5"/><path d="M12 11V3l5 5h-5"/></svg>Vessels</a>
+    <a href="04-incident-report.html"><svg class="i" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg>Reports</a>
+    <a class="on" href="#"><svg class="i" viewBox="0 0 24 24"><path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5S5 13 5 15a7 7 0 0 0 7 7Z"/></svg>Spills</a>
+    <div class="bottom">
+      <a href="#"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>Settings</a>
+      <span class="avatar">RK</span>
+    </div>
+  </nav>
+
+  <main class="stage">
+    <div id="map"></div>
+
+    <div class="float card title">
+      <span class="pill amber">Suspected oil slick</span>
+      <h1>Near Tuticorin outer anchorage</h1>
+      <div class="muted" style="font-size:13.5px">Seen on radar at 11:42 IST, about 4.2 km²</div>
+    </div>
+
+    <section class="float card panel">
+      <div class="sec">
+        <h2>Release</h2>
+        <div class="field"><span>Oil type</span><span>Bunker fuel (IFO 380)</span></div>
+        <div class="field"><span>Amount</span><span>120 t, could be 60 to 180 t</span></div>
+        <div class="field"><span>Wind</span><span>18 kn from the south-west</span></div>
+        <div style="display:flex;gap:10px;margin-top:12px"><button class="btn primary" style="flex:1">Run again</button><button class="btn">Compare with GNOME</button></div>
+      </div>
+      <div class="sec">
+        <h2>What it reaches</h2>
+        <div class="hz"><span class="t"><span class="sw" style="background:#F3B38A"></span>6 h</span><span class="muted">9 km², open water only</span><span class="pill green">Safe</span></div>
+        <div class="hz"><span class="t"><span class="sw" style="background:#E0763C"></span>12 h</span><span class="muted">27 km², edge of Van Tivu seagrass</span><span class="pill amber">Watch</span></div>
+        <div class="hz"><span class="t"><span class="sw" style="background:#B8451C"></span>24 h</span><span class="muted">64 km², Kariyachalli coral reef</span><span class="pill red">Act now</span></div>
+        <div class="faint" style="font-size:12.5px;margin-top:8px">In 31% of the 2,000 simulated runs, oil also reaches Vilanguchalli island by 24 h (dashed area).</div>
+      </div>
+      <div class="sec">
+        <h2>Suggested next steps</h2>
+        <div class="muted" style="font-size:13.5px;line-height:1.75">1. Put booms along the Kariyachalli reef edge within 12 h.<br>2. Ask the Coast Guard for an aerial check.<br>3. List tankers at the anchorage from 06:00 to 11:42.</div>
+        <div style="display:flex;gap:10px;margin-top:14px"><button class="btn primary" style="flex:1">Create incident</button><button class="btn">Find source ship</button></div>
+      </div>
+    </section>
+
+    <div class="float card legend">
+      <span><svg width="22" height="10"><path d="M1 5h20" stroke="#B8451C" stroke-width="2.5"/></svg>Most likely extent</span>
+      <span><svg width="22" height="10"><path d="M1 5h20" stroke="#D64545" stroke-width="2" stroke-dasharray="4 3"/></svg>Possible extent</span>
+      <span><svg width="12" height="12"><rect x="1" y="1" width="10" height="10" rx="2" fill="#E4F5EE" stroke="#1E9E6A" stroke-width="1.5"/></svg>Coral and seagrass</span>
+    </div>
+
+    <div class="float card scrub">
+      <button class="btn" style="height:36px"><svg viewBox="0 0 24 24" width="12" height="12"><path d="M6 4v16l14-8Z" fill="#08337F"/></svg>Play</button>
+      <div style="min-width:130px"><div style="font:600 17px var(--head);color:var(--navy)">+12 hours</div><div class="faint mono">03:05 IST, 18 Sep</div></div>
+      <div class="track" style="margin-right:18px"><div class="r"></div><div class="f"></div><div class="k"></div>
+        <span class="tk" style="left:0">Now</span><span class="tk" style="left:25%">6 h</span><span class="tk" style="left:50%">12 h</span><span class="tk" style="left:75%">18 h</span><span class="tk" style="left:100%">24 h</span></div>
+    </div>
+  </main>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+const map = L.map('map', { zoomControl: false }).setView([8.84, 78.44], 11);
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}', { attribution: 'Basemap © Esri, GEBCO, NOAA', maxNativeZoom: 10, maxZoom: 13 }).addTo(map);
+
+const src = [8.735, 78.26];
+function blob(c, lenKm, widKm, bearing, shift, wobble = .12, n = 48) {
+  const out = [], b = bearing * Math.PI / 180, kmLat = 1 / 111, kmLon = 1 / (111 * Math.cos(c[0] * Math.PI / 180));
+  const cx = c[0] + Math.cos(b) * shift * kmLat, cy = c[1] + Math.sin(b) * shift * kmLon;
+  for (let i = 0; i < n; i++) {
+    const t = i / n * 2 * Math.PI, r = 1 + wobble * Math.sin(3 * t + 1) + wobble * .6 * Math.cos(5 * t);
+    const u = Math.cos(t) * lenKm * r, v = Math.sin(t) * widKm * r;
+    out.push([cx + (u * Math.cos(b) - v * Math.sin(b)) * kmLat, cy + (u * Math.sin(b) + v * Math.cos(b)) * kmLon]);
+  }
+  return out;
+}
+// Habitats (indicative)
+[[[8.85,78.27],[8.87,78.30]], [[8.89,78.37],[8.91,78.41]], [[8.92,78.44],[8.935,78.48]]].forEach(r =>
+  L.rectangle(r, { color: '#1E9E6A', weight: 1.5, fillColor: '#1E9E6A', fillOpacity: .18 }).addTo(map));
+[['Van Tivu', 8.842, 78.20], ['Kariyachalli', 8.90, 78.30], ['Vilanguchalli', 8.945, 78.42]].forEach(([n, a, b]) =>
+  L.marker([a, b], { icon: L.divIcon({ className: '', html: `<span class="maptag" style="color:#146B48">${n}</span>` }) }).addTo(map));
+
+L.polygon(blob(src, 13.5, 6.5, 46, 12, .18), { color: '#D64545', weight: 1.6, dashArray: '6 5', fillColor: '#D64545', fillOpacity: .05 }).addTo(map);
+[[10.5, 4.6, 12.5, '#B8451C', .16], [6.2, 3.0, 7.0, '#E0763C', .20], [3.2, 1.8, 3.2, '#F3B38A', .30]].forEach(([l, w, s, c, o]) =>
+  L.polygon(blob(src, l, w, 46, s), { color: c, weight: 2, fillColor: c, fillOpacity: o }).addTo(map));
+L.marker(src, { icon: L.divIcon({ className: '', iconSize: [18,18], iconAnchor: [9,9], html: '<svg width="18" height="18" viewBox="0 0 18 18"><circle cx="9" cy="9" r="7" fill="#fff" stroke="#08337F" stroke-width="2.5"/><circle cx="9" cy="9" r="2.5" fill="#08337F"/></svg>' }) }).addTo(map);
+L.marker(src, { icon: L.divIcon({ className: '', html: '<span class="maptag">Release point · 11:42</span>', iconAnchor: [150, 8] }) }).addTo(map);
+[['6 h', 6.4, '#B8451C'], ['12 h', 13.2, '#B8451C'], ['24 h', 23, '#B8451C']].forEach(([t, d]) => {
+  const b = 46 * Math.PI / 180;
+  L.marker([src[0] + Math.cos(b) * d / 111, src[1] + Math.sin(b) * d / 109.6], { icon: L.divIcon({ className: '', html: `<span class="maptag">${t}</span>`, iconAnchor: [-6, 10] }) }).addTo(map);
+});
+</script>
+</body>
+</html>

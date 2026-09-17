@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SamudraSense · Sea Pearl II</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="samudra.css">
+<style>
+  .page { overflow: hidden; display: flex; flex-direction: column; }
+  .head { display: flex; align-items: center; gap: 28px; padding: 24px 32px 18px; }
+  .head h1 { font-size: 30px; margin-top: 6px; }
+  .facts { display: flex; gap: 28px; margin-left: 12px; }
+  .facts div span { display: block; font-size: 12.5px; color: var(--faint); }
+  .facts div b { font: 500 14px var(--mono); }
+  .head .act { margin-left: auto; display: flex; gap: 10px; }
+  .grid { flex: 1; display: grid; grid-template-columns: 1fr 440px; gap: 18px; padding: 0 32px 24px; min-height: 0; }
+  .left { display: grid; grid-template-rows: 1fr 210px; gap: 18px; min-height: 0; }
+  .right { display: grid; grid-template-rows: 1fr 300px; gap: 18px; min-height: 0; }
+  .card { border: 1px solid var(--line); box-shadow: none; overflow: hidden; }
+  .ch { display: flex; align-items: center; gap: 10px; padding: 14px 18px 8px; }
+  .ch h2 { font-size: 16px; }
+  .ch .r { margin-left: auto; }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; padding: 6px 18px 18px; height: calc(100% - 46px); }
+  .crop, .mini { position: relative; border-radius: 10px; overflow: hidden; }
+  .crop canvas { width: 100%; height: 100%; display: block; image-rendering: pixelated; }
+  .cap { position: absolute; left: 10px; bottom: 10px; font: 12px var(--mono); background: rgba(255,255,255,.92); color: var(--ink); padding: 3px 8px; border-radius: 6px; }
+  .tog { position: absolute; left: 10px; top: 10px; }
+  #mm { position: absolute; inset: 0; }
+  .steps { padding: 4px 18px 10px; position: relative; }
+  .step { display: grid; grid-template-columns: 46px 18px 1fr auto; gap: 10px; padding: 9px 0; align-items: start; position: relative; }
+  .step time { font: 12.5px var(--mono); color: var(--faint); padding-top: 1px; }
+  .step .n { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--peri); background: #fff; margin-top: 4px; position: relative; z-index: 1; }
+  .step.hit .n { border-color: var(--red); }
+  .step.dk .n { border-color: var(--amber); border-radius: 2px; transform: rotate(45deg); }
+  .step.ok .n { border-color: var(--green); }
+  .step b { font-weight: 500; }
+  .step small { display: block; color: var(--muted); font-size: 12.5px; }
+  .step .pts { font: 500 12.5px var(--mono); color: var(--red); padding-top: 1px; }
+  .rule { position: absolute; left: 79px; top: 20px; bottom: 26px; border-left: 1.5px solid var(--line); }
+  .foot { display: flex; align-items: center; gap: 8px; padding: 10px 18px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="shell">
+  <nav class="rail">
+    <div class="logo"><svg class="i" viewBox="0 0 24 24" style="color:#fff"><path d="M3 15c2.2-1.6 4.4-1.6 6.6 0s4.4 1.6 6.6 0 3.6-1.2 4.8-.6"/><path d="M3 19c2.2-1.6 4.4-1.6 6.6 0s4.4 1.6 6.6 0 3.6-1.2 4.8-.6"/><circle cx="12" cy="8" r="3"/></svg></div>
+    <a href="01-command-map.html"><svg class="i" viewBox="0 0 24 24"><path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3Z"/><path d="M9 3v15M15 6v15"/></svg>Map</a>
+    <a href="02-alert-triage.html"><span class="badge">7</span><svg class="i" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg>Alerts</a>
+    <a class="on" href="#"><svg class="i" viewBox="0 0 24 24"><path d="M2 20c2 1 4 1 6 0s4-1 6 0 4 1 6 0"/><path d="M4 16 3 11h18l-2 5"/><path d="M12 11V3l5 5h-5"/></svg>Vessels</a>
+    <a href="04-incident-report.html"><svg class="i" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg>Reports</a>
+    <a href="05-spill-simulator.html"><svg class="i" viewBox="0 0 24 24"><path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5S5 13 5 15a7 7 0 0 0 7 7Z"/></svg>Spills</a>
+    <div class="bottom">
+      <a href="#"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>Settings</a>
+      <span class="avatar">RK</span>
+    </div>
+  </nav>
+
+  <main class="page">
+    <div class="head">
+      <div>
+        <div style="display:flex;gap:6px"><span class="pill red">Dark rendezvous</span><span class="pill zone">Gulf of Mannar park buffer</span><span class="pill navy">In review · R. Kannan</span></div>
+        <h1>Sea Pearl II</h1>
+      </div>
+      <div class="facts">
+        <div><span>MMSI</span><b>419007431</b></div>
+        <div><span>Type</span><b>Trawler, 23.4 m</b></div>
+        <div><span>Home port</span><b>Tuticorin</b></div>
+        <div><span>Risk</span><b style="color:var(--red)">0.87</b></div>
+      </div>
+      <div class="act"><button class="btn">Add note</button><a class="btn primary" href="04-incident-report.html">Draft report</a></div>
+    </div>
+
+    <div class="grid">
+      <div class="left">
+        <section class="card">
+          <div class="ch"><h2>Radar and track</h2><span class="faint" style="font-size:13px">Sentinel-1 · 17 Sep 11:42 IST</span></div>
+          <div class="pair">
+            <div class="crop"><canvas id="sar" width="160" height="160"></canvas>
+              <span class="tog chip on" style="height:28px;font-size:12.5px">Showing what the model saw</span>
+              <span class="cap">24 m hull · 91% sure</span></div>
+            <div class="mini"><div id="mm"></div><span class="cap" style="z-index:500">Last AIS 08:20, met carrier 12 km on</span></div>
+          </div>
+        </section>
+        <section class="card">
+          <div class="ch"><h2>Speed</h2><span class="faint" style="font-size:13px">knots, last 12 h</span>
+            <span class="r" style="display:flex;gap:16px;font-size:12.5px;color:var(--muted)"><span><svg width="18" height="8"><path d="M0 4h18" stroke="#08337F" stroke-width="2"/></svg> AIS</span><span><svg width="18" height="8"><path d="M0 4h18" stroke="#D64545" stroke-dasharray="4 3" stroke-width="2"/></svg> Estimated while dark</span></span></div>
+          <svg id="sog" width="100%" height="160"></svg>
+        </section>
+      </div>
+
+      <div class="right">
+        <section class="card">
+          <div class="ch"><h2>How the case was built</h2><span class="r faint" style="font-size:13px">points add up to the risk score</span></div>
+          <div class="steps">
+            <div class="rule"></div>
+            <div class="step"><time>03:40</time><span class="n"></span><div><b>Left Tuticorin harbour</b><small>AIS on, 7.8 kn</small></div><span></span></div>
+            <div class="step hit"><time>08:20</time><span class="n"></span><div><b>AIS switched off</b><small>Silent 6 h 12 m. Rule: more than 4 h</small></div><span class="pts">+0.31</span></div>
+            <div class="step hit"><time>10:05</time><span class="n"></span><div><b>Loitering in the park buffer</b><small>2 h 40 m below 2 kn</small></div><span class="pts">+0.14</span></div>
+            <div class="step hit"><time>11:20</time><span class="n"></span><div><b>Met a carrier ship</b><small>410 m apart for 2 h 10 m</small></div><span class="pts">+0.18</span></div>
+            <div class="step dk"><time>11:42</time><span class="n"></span><div><b>Radar found a hull with no AIS</b><small>24 m, matches registered length</small></div><span class="pts">+0.24</span></div>
+            <div class="step ok"><time>13:02</time><span class="n"></span><div><b>Weather ruled out</b><small>Wind 14 kn, swell 1.1 m</small></div><span class="pts" style="color:var(--green)">0.00</span></div>
+          </div>
+          <div class="foot"><svg width="14" height="14" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="#E4F5EE"/><path d="m5 8.2 2 2 4-4.4" stroke="#1E9E6A" stroke-width="1.7" fill="none"/></svg>4 evidence files hashed and unchanged since capture</div>
+        </section>
+        <section class="card">
+          <div class="ch"><h2>Who it met</h2><span class="r faint" style="font-size:13px">last 48 h</span></div>
+          <svg id="graph" width="100%" height="250"></svg>
+        </section>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+// Radar crop with a saliency overlay ("what the model saw")
+(function () {
+  const c = document.getElementById('sar'), x = c.getContext('2d'), img = x.createImageData(160, 160);
+  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  for (let j = 0; j < 160; j++) for (let i = 0; i < 160; i++) {
+    let v = 30 + 40 * Math.pow(rnd(), 3);
+    const dx = i - 84, dy = j - 78, u = dx * .8 + dy * .6, w = -dx * .6 + dy * .8;
+    if (Math.abs(u) < 8 && Math.abs(w) < 2.4) v = 215 + 40 * rnd();
+    else if (u < -8 && u > -60 && Math.abs(w) < 1 + (-u) * .08) v += 22 * rnd();
+    const k = (j * 160 + i) * 4; img.data[k] = img.data[k + 1] = img.data[k + 2] = v; img.data[k + 3] = 255;
+  }
+  x.putImageData(img, 0, 0);
+  const g = x.createRadialGradient(84, 78, 2, 84, 78, 26);
+  g.addColorStop(0, 'rgba(255,170,40,.55)'); g.addColorStop(.6, 'rgba(214,69,69,.22)'); g.addColorStop(1, 'rgba(214,69,69,0)');
+  x.fillStyle = g; x.fillRect(0, 0, 160, 160);
+  x.strokeStyle = '#FFB547'; x.lineWidth = 1; x.strokeRect(70.5, 67.5, 28, 22);
+})();
+
+const mm = L.map('mm', { zoomControl: false, attributionControl: false }).setView([8.87, 78.90], 10);
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}').addTo(mm);
+L.polyline([[8.62,78.80],[8.70,78.84],[8.78,78.88],[8.84,78.91],[8.90,78.93]], { color: '#08337F', weight: 3 }).addTo(mm);
+L.polyline([[8.90,78.93],[8.97,78.96],[9.03,78.98]], { color: '#D64545', weight: 2.5, dashArray: '3 6' }).addTo(mm);
+L.circleMarker([8.90,78.93], { radius: 4, color: '#fff', weight: 2, fillColor: '#08337F', fillOpacity: 1 }).addTo(mm);
+L.circleMarker([9.035,78.99], { radius: 14, color: '#D64545', weight: 2, fillColor: '#D64545', fillOpacity: .1 }).addTo(mm);
+L.marker([9.03,78.98], { icon: L.divIcon({ className: '', iconSize: [14,14], iconAnchor: [7,7], html: '<svg width="14" height="14" viewBox="0 0 12 12"><path d="M6 1 11 6 6 11 1 6Z" fill="#fff" stroke="#D98A0B" stroke-width="1.8"/></svg>' }) }).addTo(mm);
+
+(function () {
+  const s = document.getElementById('sog'), W = s.getBoundingClientRect().width, H = 160, L0 = 44, R = 20, T = 10, B = 26;
+  const ns = 'http://www.w3.org/2000/svg', el = (t, a, txt) => { const e = document.createElementNS(ns, t); for (const k in a) e.setAttribute(k, a[k]); if (txt) e.textContent = txt; s.appendChild(e); return e; };
+  const x = h => L0 + (h / 12) * (W - L0 - R), y = v => T + (1 - v / 10) * (H - T - B);
+  [0, 5, 10].forEach(v => { el('line', { x1: L0, x2: W - R, y1: y(v), y2: y(v), stroke: '#E3E7F0' }); el('text', { x: L0 - 10, y: y(v) + 4, 'text-anchor': 'end', fill: '#8A93A8', 'font-size': 11.5, 'font-family': 'IBM Plex Mono' }, v); });
+  [0, 3, 6, 9, 12].forEach(h => el('text', { x: x(h), y: H - 6, 'text-anchor': 'middle', fill: '#8A93A8', 'font-size': 11.5, 'font-family': 'IBM Plex Mono' }, String(2 + h).padStart(2, '0') + ':30'));
+  el('line', { x1: L0, x2: W - R, y1: y(2), y2: y(2), stroke: '#D64545', 'stroke-dasharray': '2 4', opacity: .6 });
+  el('text', { x: W - R, y: y(2) - 6, 'text-anchor': 'end', fill: '#A82E2E', 'font-size': 12, 'font-family': 'Jost' }, 'loitering below 2 kn');
+  const pts = [[0,0],[1.1,.2],[1.3,6.5],[2.5,7.8],[3.5,7.4],[4.5,7.9],[5.5,6.2],[5.8,6.9]];
+  el('path', { d: pts.map((p, i) => (i ? 'L' : 'M') + x(p[0]) + ' ' + y(p[1])).join(''), fill: 'none', stroke: '#08337F', 'stroke-width': 2.2, 'stroke-linejoin': 'round' });
+  el('path', { d: `M${x(5.8)} ${y(6.9)} L${x(7)} ${y(4)} L${x(7.6)} ${y(1.3)} L${x(10)} ${y(1.1)} L${x(12)} ${y(1.4)}`, fill: 'none', stroke: '#D64545', 'stroke-width': 2, 'stroke-dasharray': '5 4' });
+  el('circle', { cx: x(5.8), cy: y(6.9), r: 4, fill: '#fff', stroke: '#08337F', 'stroke-width': 2 });
+})();
+
+(function () {
+  const s = document.getElementById('graph'), W = s.getBoundingClientRect().width;
+  const ns = 'http://www.w3.org/2000/svg', el = (t, a, txt) => { const e = document.createElementNS(ns, t); for (const k in a) e.setAttribute(k, a[k]); if (txt) e.textContent = txt; s.appendChild(e); return e; };
+  const N = { sp: [W*.18,110,'Sea Pearl II','flag'], cr: [W*.52,110,'Carrier 572…004','carrier'], a: [W*.84,44,'Mariyam','ais'], b: [W*.84,186,'Radar hull','dark'], c: [W*.52,200,'Anbu Selvi','ais'] };
+  [['sp','cr',1],['cr','a',0],['cr','b',0],['cr','c',0]].forEach(([p,q,k]) => el('line', { x1: N[p][0], y1: N[p][1], x2: N[q][0], y2: N[q][1], stroke: k ? '#D64545' : '#C1CBFF', 'stroke-width': k ? 2.5 : 2 }));
+  el('text', { x: (N.sp[0]+N.cr[0])/2, y: 98, 'text-anchor': 'middle', fill: '#A82E2E', 'font-size': 12, 'font-family': 'IBM Plex Mono' }, '410 m · 2 h');
+  Object.values(N).forEach(([x, y, n, t]) => {
+    if (t === 'dark') el('path', { d: `M${x} ${y-10} l10 10 l-10 10 l-10 -10Z`, fill: '#fff', stroke: '#D98A0B', 'stroke-width': 2 });
+    else if (t === 'carrier') el('rect', { x: x-12, y: y-10, width: 24, height: 20, rx: 5, fill: '#FCEBEB', stroke: '#D64545', 'stroke-width': 2 });
+    else el('circle', { cx: x, cy: y, r: t === 'flag' ? 12 : 9, fill: t === 'flag' ? '#FCEBEB' : '#fff', stroke: t === 'flag' ? '#D64545' : '#08337F', 'stroke-width': 2 });
+    el('text', { x, y: y + 30, 'text-anchor': 'middle', fill: '#1B1F2A', 'font-size': 13, 'font-family': 'Jost' }, n);
+  });
+})();
+</script>
+</body>
+</html>
