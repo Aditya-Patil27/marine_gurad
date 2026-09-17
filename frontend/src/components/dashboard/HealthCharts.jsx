@@ -16,7 +16,7 @@ const HealthCharts = () => {
           date: new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
           ohi: response.data.ohi_scores[index],
           temperature: response.data.temperatures[index],
-          ph: response.data.ph_values[index] * 10, // Scale for visibility
+          ph: response.data.ph_values[index] ? response.data.ph_values[index] * 10 : null, // Scale for visibility
           forecast: response.data.forecasts[index]
         }))
         

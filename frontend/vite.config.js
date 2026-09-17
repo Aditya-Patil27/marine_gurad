@@ -11,9 +11,10 @@ export default defineConfig({
       usePolling: true
     },
     // Proxy API requests to backend during development
+    // (API_PROXY_TARGET is http://backend:8000 inside docker-compose)
     proxy: {
       '/api': {
-        target: process.env.VITE_API_URL || 'http://localhost:8000',
+        target: process.env.API_PROXY_TARGET || 'http://127.0.0.1:8000',
         changeOrigin: true,
         secure: false
       }

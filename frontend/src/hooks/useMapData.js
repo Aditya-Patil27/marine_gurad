@@ -11,7 +11,6 @@ export const useMapData = (layerType, bbox = null) => {
 
     const fetchData = async () => {
       try {
-        setLoading(true)
         const response = await mapApi.getLayers(layerType, bbox)
         
         if (mounted) {

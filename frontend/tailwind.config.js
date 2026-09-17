@@ -1,4 +1,6 @@
 /** @type {import('tailwindcss').Config} */
+import typography from '@tailwindcss/typography'
+
 export default {
   content: [
     "./index.html",
@@ -68,5 +70,6 @@ export default {
       }
     },
   },
-  plugins: [],
+  // Styles the `prose` classes used by chat messages
+  plugins: [typography],
 }

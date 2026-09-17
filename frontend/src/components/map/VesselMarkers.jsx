@@ -30,7 +30,7 @@ const VesselMarkers = () => {
 
       return (
         <CircleMarker
-          key={`${properties.mmsi}-${properties.timestamp}`}
+          key={properties.mmsi}
           center={[lat, lon]}
           radius={6}
           pathOptions={{
@@ -47,8 +47,8 @@ const VesselMarkers = () => {
               <div className="space-y-1">
                 <p><span className="font-semibold">Type:</span> {properties.vessel_type || 'Unknown'}</p>
                 <p><span className="font-semibold">Flag:</span> {properties.flag || 'N/A'}</p>
-                <p><span className="font-semibold">Speed:</span> {properties.speed ? `${properties.speed.toFixed(1)} kn` : 'N/A'}</p>
-                <p><span className="font-semibold">Course:</span> {properties.course ? `${properties.course.toFixed(0)}°` : 'N/A'}</p>
+                <p><span className="font-semibold">Speed:</span> {properties.speed != null ? `${properties.speed.toFixed(1)} kn` : 'N/A'}</p>
+                <p><span className="font-semibold">Course:</span> {properties.course != null ? `${properties.course.toFixed(0)}°` : 'N/A'}</p>
                 <p>
                   <span className="font-semibold">Risk:</span> 
                   <span className={`ml-1 px-2 py-0.5 rounded text-xs text-white ${

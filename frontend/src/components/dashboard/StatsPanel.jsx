@@ -5,7 +5,7 @@ import { analyticsApi } from '../../lib/api'
 const StatsPanel = () => {
   const [stats, setStats] = useState({
     active_vessels: 0,
-    pollution_events_week: 0,
+    pollution_events: 0,
     high_risk_vessels: 0,
     mpas_monitored: 0
   })
@@ -40,7 +40,7 @@ const StatsPanel = () => {
         <Droplet className="w-5 h-5 text-red-400" />
         <div>
           <p className="text-xs text-blue-200">Pollution Events</p>
-          <p className="text-lg font-bold bg-gradient-to-r from-white to-blue-100 bg-clip-text text-transparent">{stats.pollution_events_week}</p>
+          <p className="text-lg font-bold bg-gradient-to-r from-white to-blue-100 bg-clip-text text-transparent">{stats.pollution_events}</p>
         </div>
       </div>
 

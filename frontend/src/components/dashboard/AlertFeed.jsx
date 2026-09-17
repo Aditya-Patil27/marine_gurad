@@ -12,6 +12,8 @@ const AlertFeed = () => {
       case 'IUU_FISHING':
         return <Ship className="w-5 h-5 text-yellow-500" />
       case 'MPA_VIOLATION':
+      case 'MPA_APPROACH_PREDICTED':
+      case 'MPA_APPROACH':
         return <Shield className="w-5 h-5 text-orange-500" />
       default:
         return <AlertTriangle className="w-5 h-5 text-gray-500" />

@@ -2,6 +2,13 @@ import React, { useMemo } from 'react'
 import { Polygon, Popup } from 'react-leaflet'
 import { useMapData } from '../../hooks/useMapData'
 
+// GeoJSON [lon, lat] rings -> Leaflet [lat, lon]; supports Polygon and MultiPolygon
+const toLatLngs = (geometry) => {
+  const ring = (coords) => coords.map(([lon, lat]) => [lat, lon])
+  if (geometry.type === 'MultiPolygon') return geometry.coordinates.map((poly) => poly.map(ring))
+  return geometry.coordinates.map(ring)
+}
+
 const PollutionLayer = () => {
   const { data, loading, error } = useMapData('pollution')
 
@@ -16,7 +23,7 @@ const PollutionLayer = () => {
 
     return data.features.map((feature) => {
       const { geometry, properties } = feature
-      const positions = geometry.coordinates[0].map(coord => [coord[1], coord[0]])
+      const positions = toLatLngs(geometry)
       const color = typeColors[properties.type] || '#6b7280'
 
       return (
@@ -37,7 +44,7 @@ const PollutionLayer = () => {
                 <p><span className="font-semibold">Type:</span> {properties.type}</p>
                 <p><span className="font-semibold">Severity:</span> {(properties.severity * 100).toFixed(0)}%</p>
                 <p><span className="font-semibold">Detected:</span> {new Date(properties.detected_at).toLocaleString()}</p>
-                {properties.confidence && (
+                {properties.confidence != null && (
                   <p><span className="font-semibold">Confidence:</span> {(properties.confidence * 100).toFixed(0)}%</p>
                 )}
               </div>

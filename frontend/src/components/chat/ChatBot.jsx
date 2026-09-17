@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import ChatMessage from './ChatMessage';
 import ChatInput from './ChatInput';
+import { API_URL } from '../../lib/api';
 
 /**
  * Marine Intelligence Assistant (MIA) Chat Interface
@@ -40,9 +41,7 @@ export default function ChatBot() {
           content: msg.content
         }));
 
-      // Send to API - use environment variable for API URL
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
-      const response = await fetch(`${apiUrl}/api/v1/chat/message`, {
+      const response = await fetch(`${API_URL}/api/v1/chat/message`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

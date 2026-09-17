@@ -1,6 +1,8 @@
 import axios from 'axios'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+// Empty by default: requests go to /api on the same origin and the Vite dev server
+// proxies them to the backend (no CORS). Set VITE_API_URL when hosting the API elsewhere.
+export const API_URL = import.meta.env.VITE_API_URL || ''
 
 const api = axios.create({
   baseURL: `${API_URL}/api/v1`,
@@ -31,7 +33,7 @@ export const alertsApi = {
   getAlerts: (limit = 50, severity = null) => {
     const params = { limit }
     if (severity) params.severity = severity
-    return api.get('/alerts', { params })
+    return api.get('/alerts/', { params })
   },
 }
 

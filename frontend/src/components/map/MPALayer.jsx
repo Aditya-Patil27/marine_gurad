@@ -2,6 +2,13 @@ import React, { useMemo } from 'react'
 import { Polygon, Popup } from 'react-leaflet'
 import { useMapData } from '../../hooks/useMapData'
 
+// GeoJSON [lon, lat] rings -> Leaflet [lat, lon]; supports Polygon and MultiPolygon
+const toLatLngs = (geometry) => {
+  const ring = (coords) => coords.map(([lon, lat]) => [lat, lon])
+  if (geometry.type === 'MultiPolygon') return geometry.coordinates.map((poly) => poly.map(ring))
+  return geometry.coordinates.map(ring)
+}
+
 const MPALayer = () => {
   const { data, loading, error } = useMapData('mpas')
 
@@ -10,7 +17,7 @@ const MPALayer = () => {
 
     return data.features.map((feature) => {
       const { geometry, properties } = feature
-      const positions = geometry.coordinates[0].map(coord => [coord[1], coord[0]])
+      const positions = toLatLngs(geometry)
 
       return (
         <Polygon

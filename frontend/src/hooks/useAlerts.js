@@ -11,7 +11,6 @@ export const useAlerts = (limit = 50) => {
 
     const fetchAlerts = async () => {
       try {
-        setLoading(true)
         const response = await alertsApi.getAlerts(limit)
         
         if (mounted) {
