@@ -1,5 +1,5 @@
 """
-Hardcoded demo data for BlueGuard hackathon presentation
+Hardcoded demo data for SamudraSense hackathon presentation
 This file contains realistic sample data for vessels, pollution events, MPAs, and alerts
 """
 

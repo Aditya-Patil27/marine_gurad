@@ -121,11 +121,11 @@ class ModelRegistry:
         
         Args:
             cache_dir: Local directory for caching downloaded models.
-                      Defaults to ~/.blueguard/models
+                      Defaults to ~/.samudrasense/models
             registry_file: Path to the JSON registry file.
                           Defaults to cache_dir/registry.json
         """
-        self.cache_dir = Path(cache_dir or os.path.expanduser("~/.blueguard/models"))
+        self.cache_dir = Path(cache_dir or os.path.expanduser("~/.samudrasense/models"))
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         
         self.registry_file = Path(registry_file or self.cache_dir / "registry.json")

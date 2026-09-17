@@ -1,1 +1,1 @@
-"""BlueGuard Backend Application"""
+"""SamudraSense Backend Application"""

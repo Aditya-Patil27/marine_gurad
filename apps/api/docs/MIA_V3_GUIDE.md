@@ -1,7 +1,7 @@
 # MIA v3.0 - Gemini 3 Deep Think & Agent Lightning Integration
 
 ## Overview
-BlueGuard's Marine Intelligence Assistant (MIA) has been upgraded to v3.0 with:
+SamudraSense's Marine Intelligence Assistant (MIA) has been upgraded to v3.0 with:
 - **Gemini 3 Pro Preview**: Advanced reasoning with Deep Think mode
 - **Gemini 3 Flash Preview**: High-speed mode for real-time tracking
 - **Agent Lightning RLAF**: Reinforcement Learning from Agent Feedback
@@ -267,14 +267,5 @@ traffic, and identify potential sources"
 
 ## Additional Resources
 
-- [Gemini 3 Documentation](https://ai.google.dev/gemini-api/docs)
-- [Agent Lightning Guide](https://microsoft.com/agent-lightning)
-- [MIA API Reference](./API.md)
-- [BlueGuard Dashboard](https://blueguard.example.com)
-
-## Support
-
-For issues or questions:
-- GitHub Issues: [blueguard/issues](https://github.com/yourorg/blueguard/issues)
-- Email: support@blueguard.ai
-- Slack: #mia-support
+- [Gemini API documentation](https://ai.google.dev/gemini-api/docs)
+- Issues: https://github.com/Aditya-Patil27/marine_gurad/issues

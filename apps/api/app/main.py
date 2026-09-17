@@ -29,7 +29,7 @@ app.include_router(chat.router, prefix=f"{settings.API_V1_PREFIX}/chat", tags=["
 @app.get("/")
 async def root():
     return {
-        "message": "BlueGuard API",
+        "message": "SamudraSense API",
         "version": settings.VERSION,
         "docs": "/docs"
     }

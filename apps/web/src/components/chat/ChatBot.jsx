@@ -12,7 +12,7 @@ export default function ChatBot() {
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
-      content: '👋 Hello! I\'m **MIA** (Marine Intelligence Assistant), your high-precision analytical agent for BlueGuard.\n\nI can help you with:\n- 🚢 **Vessel Intelligence**: Track vessels, analyze traffic, identify anomalies\n- 🛢️ **Pollution Data**: Oil spills, plastic density, chemical indicators\n- 🏝️ **MPA Compliance**: Monitor protected areas and violations\n- 📊 **Trend Analysis**: Compare data across time periods\n- 💡 **Platform Guide**: Learn how to use BlueGuard features\n\nWhat would you like to know?',
+      content: '👋 Hello! I\'m **MIA** (Marine Intelligence Assistant), your high-precision analytical agent for SamudraSense.\n\nI can help you with:\n- 🚢 **Vessel Intelligence**: Track vessels, analyze traffic, identify anomalies\n- 🛢️ **Pollution Data**: Oil spills, plastic density, chemical indicators\n- 🏝️ **MPA Compliance**: Monitor protected areas and violations\n- 📊 **Trend Analysis**: Compare data across time periods\n- 💡 **Platform Guide**: Learn how to use SamudraSense features\n\nWhat would you like to know?',
       timestamp: new Date(),
       confidence: 100,
       sources: []

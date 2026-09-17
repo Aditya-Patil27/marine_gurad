@@ -15,7 +15,7 @@ const DEFAULT_CENTER = [
 ]
 const DEFAULT_ZOOM = parseInt(import.meta.env.VITE_MAP_ZOOM) || 4
 
-const BlueGuardMap = ({ selectedLayer, onLayerChange }) => {
+const OceanMap = ({ selectedLayer, onLayerChange }) => {
   const [center] = useState(DEFAULT_CENTER)
   const [zoom] = useState(DEFAULT_ZOOM)
   const [layers, setLayers] = useState({
@@ -66,4 +66,4 @@ const BlueGuardMap = ({ selectedLayer, onLayerChange }) => {
   )
 }
 
-export default BlueGuardMap
+export default OceanMap

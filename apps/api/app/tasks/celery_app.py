@@ -3,7 +3,7 @@ from app.config import settings
 import asyncio
 
 celery_app = Celery(
-    "blueguard",
+    "samudrasense",
     broker=settings.REDIS_URL,
     backend=settings.REDIS_URL
 )

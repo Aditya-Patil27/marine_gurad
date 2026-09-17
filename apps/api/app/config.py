@@ -3,7 +3,7 @@ from functools import lru_cache
 from typing import Optional
 
 class Settings(BaseSettings):
-    PROJECT_NAME: str = "BlueGuard"
+    PROJECT_NAME: str = "SamudraSense"
     VERSION: str = "1.0.0"
     API_V1_PREFIX: str = "/api/v1"
     
@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     # Model Registry Configuration
     # Storage backend: "local", "supabase", "s3", "http"
     MODEL_STORAGE_BACKEND: str = "local"
-    MODEL_CACHE_DIR: Optional[str] = None  # Defaults to ~/.blueguard/models
+    MODEL_CACHE_DIR: Optional[str] = None  # Defaults to ~/.samudrasense/models
     
     # AWS S3 Configuration (for model storage)
     AWS_ACCESS_KEY_ID: Optional[str] = None

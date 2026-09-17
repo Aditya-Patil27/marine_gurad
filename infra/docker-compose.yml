@@ -9,15 +9,15 @@ services:
     image: postgis/postgis:15-3.3
     container_name: samudrasense_postgres
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-blueguard}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-blueguard_secret}
-      POSTGRES_DB: ${POSTGRES_DB:-blueguard_db}
+      POSTGRES_USER: ${POSTGRES_USER:-samudra}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-samudra_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-samudrasense_db}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-blueguard} -d ${POSTGRES_DB:-blueguard_db}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-samudra} -d ${POSTGRES_DB:-samudrasense_db}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -47,7 +47,7 @@ services:
       - path: ../apps/api/.env
         required: false
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgresql://blueguard:blueguard_secret@postgres:5432/blueguard_db}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://samudra:samudra_secret@postgres:5432/samudrasense_db}
       REDIS_URL: redis://redis:6379/0
       PYTHONUNBUFFERED: 1
     volumes:
@@ -69,7 +69,7 @@ services:
       - path: ../apps/api/.env
         required: false
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgresql://blueguard:blueguard_secret@postgres:5432/blueguard_db}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://samudra:samudra_secret@postgres:5432/samudrasense_db}
       REDIS_URL: redis://redis:6379/0
     volumes:
       - ../apps/api:/app

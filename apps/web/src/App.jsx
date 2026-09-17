@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import BlueGuardMap from './components/map/BlueGuardMap'
+import OceanMap from './components/map/OceanMap'
 import AlertFeed from './components/dashboard/AlertFeed'
 import HealthCharts from './components/dashboard/HealthCharts'
 import StatsPanel from './components/dashboard/StatsPanel'
@@ -18,7 +18,7 @@ function App() {
               <span className="text-2xl">🌊</span>
             </div>
             <div>
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-200 to-cyan-200 bg-clip-text text-transparent">BlueGuard</h1>
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-200 to-cyan-200 bg-clip-text text-transparent">SamudraSense</h1>
               <p className="text-xs text-blue-200">AI Ocean Intelligence Platform</p>
             </div>
           </div>
@@ -37,7 +37,7 @@ function App() {
 
         {/* Map */}
         <main className="flex-1 relative">
-          <BlueGuardMap selectedLayer={selectedLayer} onLayerChange={setSelectedLayer} />
+          <OceanMap selectedLayer={selectedLayer} onLayerChange={setSelectedLayer} />
         </main>
 
         {/* Right Panel */}

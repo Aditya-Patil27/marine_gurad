@@ -38,7 +38,7 @@ class MarineIntelligenceAssistant:
         return self._client
 
     def _build_system_prompt(self) -> str:
-        return """You are MIA (Marine Intelligence Assistant), analyzing maritime data for BlueGuard Platform.
+        return """You are MIA (Marine Intelligence Assistant), analyzing maritime data for SamudraSense Platform.
 
 Core Principles:
 - Only state facts from retrieved data
@@ -238,7 +238,7 @@ Capabilities:
                     "is_dark": v.is_dark,
                     "risk_score": v.risk_score
                 } for v in vessels[:10]],
-                "source": "BlueGuard AIS Database"
+                "source": "SamudraSense AIS database"
             }
         finally:
             db.close()
@@ -304,7 +304,7 @@ Capabilities:
                     "country": m.country,
                     "iucn_category": m.iucn_category
                 } for m in mpas[:10]],
-                "source": "BlueGuard MPA Database"
+                "source": "SamudraSense MPA database"
             }
         finally:
             db.close()

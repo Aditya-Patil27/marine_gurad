@@ -1,789 +1,213 @@
-# BlueGuard 🌊
+# SamudraSense
 
-**AI-Powered Ocean Surveillance & Maritime Intelligence Platform**
+**Climate-aware AI for ocean protection.** *Samudra* is Sanskrit for ocean.
 
-BlueGuard is an advanced maritime monitoring system that leverages artificial intelligence, satellite imagery, and real-time vessel tracking to protect marine ecosystems, detect illegal activities, and ensure compliance with environmental regulations.
+SamudraSense predicts which waters are at risk, catches vessels that hide from tracking, and turns the evidence into reports that an officer signs off. It is designed to run offline on a single workstation.
 
----
+Built by **Team Code4Seas** (Adish Nair, Aditya Patil, Aditya Saraf, Lubdha Chaudhari, Nishida Datkar) for **Indradhanu IGC 2026**, track *AI for Climate Change: Ocean & Marine Protection*. It grows out of our earlier platform, BlueGuard.
 
-## 🎯 Mission
-
-To safeguard our oceans through intelligent surveillance, predictive analytics, and real-time threat detection—empowering maritime authorities, environmental organizations, and coastal communities with actionable intelligence.
+> **Status (Sep 2026):** the BlueGuard v1 backend and dashboard in this repo work end to end. The screens for SamudraSense are designed and signed off in [docs/design](docs/design/DESIGN.md). The features listed under [The idea](#the-idea) are what we are building for the prototype (10 Nov 2026) and the finale (20–21 Jan 2027). They are not in the code yet.
 
 ---
 
-## ✨ Key Features
+## The problem
 
-### 🚢 Vessel Tracking & Anomaly Detection
-- **Real-time AIS (Automatic Identification System) monitoring** - Track vessel movements globally
-- **Dark vessel detection** - Identify ships with disabled AIS transponders (common in illegal fishing)
-- **Risk scoring algorithm** - ML-based risk assessment for each vessel
-- **Behavioral pattern analysis** - Detect suspicious activities and route deviations
-- **Multi-vessel tracking** - Simultaneous monitoring of thousands of ships
+Oceans absorb about 90% of the extra heat from global warming (IPCC AR6). As seas warm, fish stocks move into new waters, and illegal fleets follow them. Up to 26 Mt of fish a year may be caught illegally, worth up to US$23 billion (FAO, upper estimate), and about 75% of industrial fishing vessels are not publicly tracked (*Nature*, 2024).
 
-### 🛢️ Pollution Monitoring
-- **Satellite-based pollution detection** - Integrate data from Copernicus/Sentinel satellites
-- **Oil spill detection** - Computer vision models for identifying oil slicks
-- **Plastic accumulation zones** - Track marine debris hotspots
-- **Chemical discharge monitoring** - Detect illegal dumping events
-- **Confidence scoring** - AI-powered verification of pollution events (65-92% accuracy)
+Today's monitoring tools have four gaps:
 
-### 🏝️ Marine Protected Area (MPA) Compliance
-- **Boundary monitoring** - Real-time tracking of vessels near MPAs
-- **Predictive violation alerts** - LSTM-based route prediction warns of potential MPA entries
-- **Compliance reporting** - Automated documentation for enforcement agencies
-- **4+ MPAs monitored** - Including Gulf of Mannar, Gulf of Kutch, Gahirmatha Sanctuary, and more
+- **Alert fatigue.** Storms make ships slow down and loiter, which sets off false alarms.
+- **Wasted compute.** AI scans every satellite tile instead of the ones that matter.
+- **No follow-up.** Detections rarely become evidence that an authority can act on.
+- **Cloud cost.** Satellite AI is out of reach for NGOs and small coastal agencies.
 
-### 🤖 MIA - Marine Intelligence Assistant
-- **AI-powered chatbot** - Built with Google Gemini (default model: gemini-2.5-flash)
-- **Natural language queries** - Ask questions about vessels, pollution, or MPAs
-- **Data synthesis** - Combines AIS data, satellite imagery, and historical patterns
-- **Source attribution** - All answers cite data sources with confidence scores
-- **Function calling** - Direct database queries for real-time intelligence
-- **Conversational memory** - Maintains context across multi-turn conversations
+## The idea
 
-### 📊 Ocean Health Monitoring
-- **Ocean Health Index (OHI) tracking** - Monitor ecosystem vitality over time
-- **Temperature & pH trends** - Climate change impact visualization
-- **Historical data analysis** - 6+ months of time-series data
-- **Predictive forecasting** - Prophet-based time-series predictions
-- **Interactive charts** - Recharts-powered data visualization
+Three verbs: **Predict, Detect, Act.**
 
-### ⚠️ Intelligent Alert System
-- **MPA violation warnings** - Predictive alerts before vessels enter protected zones
-- **Pollution event notifications** - Immediate alerts on new detections
-- **IUU fishing detection** - Illegal, Unreported, and Unregulated fishing alerts
-- **Severity classification** - High/Medium/Low priority levels
-- **Real-time feed** - Live alert dashboard with premium UI
+1. **Predict.** Forecast sea temperature and chlorophyll per grid cell, rank the cells where illegal fishing is likely to move next, and pull radar tiles only for those cells.
+2. **Detect.** A radar hull with no matching AIS signal is a dark vessel. A finite state machine checks for evasion.
+3. **Verify.** If there was a storm, the alert goes on a watch list. If the sea was calm, we find who the vessel met.
+4. **Act.** The evidence is hashed, a local LLM drafts the report, and an officer approves it. Nothing is sent without that approval.
 
----
+| # | Innovation | What it does |
+|---|---|---|
+| 01 | Climate hotspots | Sea-temperature shifts predict where illegal fishing moves |
+| 02 | SAR + AIS fusion | Sentinel-1 radar hulls with no AIS become dark-vessel alerts |
+| 03 | Evasion state machine | Tracks AIS switch-off, loitering, rendezvous and position jumps as explainable states |
+| 04 | Weather-aware triage | Storm sheltering is downgraded and logged, never deleted. A storm near a protected area escalates instead |
+| 05 | Ghost-fleet graph | Maps every vessel a dark ship met in the last 48 hours |
+| 06 | Legal dispatch | A local LLM drafts incident reports for officer approval |
+| 07 | Spill simulator | Drop a pin to see where oil drifts in 6, 12 and 24 hours |
+| 08 | Green edge AI | Runs offline on one RTX 3050 and scans only hotspot tiles |
 
-## 🏭 Industrial Applications
+### Explainable by design
 
-### Government & Maritime Authorities
-- **Coast Guard operations** - Real-time vessel monitoring for search & rescue
-- **Customs enforcement** - Track suspicious cargo movements
-- **Environmental compliance** - Monitor shipping lanes and pollution sources
-- **Border security** - Detect unauthorized vessels in territorial waters
+An officer can't board a boat because a model said 0.87. Every alert in SamudraSense shows:
 
-### Environmental Organizations
-- **MPA enforcement** - Protect marine reserves from illegal fishing
-- **Pollution response** - Rapid identification and tracking of spills
-- **Wildlife protection** - Monitor vessel traffic near endangered species habitats
-- **Climate research** - Long-term ocean health data collection
+- **Why it was flagged.** The risk score is additive: each behaviour adds points, so the breakdown *is* the score.
+- **What was ruled out.** For example bad weather or an AIS receiver outage.
+- **What would clear it.** For example "drops to 0.45 if AIS resumes within 4 h".
+- **Where every figure comes from.** Each number in a report links to its database record, and sign-off is blocked while any number is unlinked. The LLM writes only the sentences.
 
-### Commercial Shipping
-- **Fleet management** - Optimize routes and fuel consumption
-- **Compliance verification** - Ensure adherence to environmental regulations
-- **Risk assessment** - Avoid high-risk areas and bad weather
-- **Transparency reporting** - ESG (Environmental, Social, Governance) metrics
+Later we add a heat overlay showing what the radar model saw (EigenCAM on YOLOv8) and SHAP values for the hotspot ranking. Route predictions from the LSTM are labelled as predictions, not explained.
 
-### Insurance & Legal
-- **Maritime insurance** - Risk-based premium calculations
-- **Incident investigation** - Historical vessel tracking and event reconstruction
-- **Legal evidence** - Document violations with timestamped data
-- **Claims processing** - Verify vessel positions during incidents
+### Honest limits
+
+| Question | Our answer |
+|---|---|
+| Satellites pass every few days. Is this real time? | AIS is live, and radar adds a confirming snapshot. Hotspots decide which passes to process first. |
+| Won't storm suppression hide real crimes? | Alerts are downgraded, never deleted, and a storm near a protected area escalates. |
+| Can a local LLM invent facts in a report? | It writes only the wording. Every figure comes from the database, and an officer approves each report. |
+| Does every AIS gap mean a vessel went dark? | No. Dark status needs a long gap plus a radar hull or a position jump. |
+| How do you find transshipment partners? | Global Fishing Watch's encounter rule: within 500 m for 2+ hours under 2 knots, then 2 hops back over 48 hours. |
+
+### How we will measure it
+
+| Open dataset | Used for | Metric |
+|---|---|---|
+| xView3-SAR (Sentinel-1) | Dark-vessel detection | Precision, recall and F1 on held-out scenes |
+| Global Fishing Watch AIS + fishing effort | Hotspot labels, encounters | Share of next month's fishing effort inside our top-ranked cells |
+| Copernicus Marine SST + chlorophyll | Hotspot forecasts | Mean absolute error per grid cell |
+| Open-Meteo Marine | Alert triage | False alerts removed vs. real alerts wrongly downgraded |
+| NOAA GNOME runs | Spill simulator | Overlap between our impact zones and GNOME's |
+
+We start with India's coasts, including the Gulf of Mannar and Gulf of Kutch protected areas. The work supports **SDG 14** (Life Below Water) and **SDG 13** (Climate Action).
 
 ---
 
-## 🚀 Future Scope & Roadmap
+## Roadmap
 
-### Phase 1: Enhanced Detection (Q1-Q2 2026)
-- [ ] **Multi-source fusion** - Integrate radar, optical, and SAR satellite data
-- [ ] **Advanced ML models** - Upgrade to YOLOv10 for vessel detection
-- [ ] **Acoustic monitoring** - Underwater noise pollution tracking
-- [ ] **Blockchain ledger** - Immutable incident recording for legal compliance
-
-### Phase 2: Predictive Intelligence (Q3-Q4 2026)
-- [ ] **AI route prediction** - 72-hour trajectory forecasting with 90%+ accuracy
-- [ ] **Behavioral profiling** - Identify vessel ownership and historical patterns
-- [ ] **Climate impact modeling** - Predict ocean health trends 5+ years ahead
-- [ ] **Automated reporting** - Generate compliance reports for regulatory bodies
-
-### Phase 3: Global Expansion (2027)
-- [ ] **Multi-region support** - Expand from Indian Ocean to Pacific, Atlantic, Arctic
-- [ ] **International collaboration** - Integrate with INTERPOL, IMO, FAO fisheries databases
-- [ ] **Mobile app** - iOS/Android apps for field enforcement teams
-- [ ] **Drone integration** - Connect to UAVs for visual verification of alerts
-
-### Phase 4: Autonomous Operations (2028+)
-- [ ] **Autonomous response drones** - Deploy water sampling drones to pollution sites
-- [ ] **Edge computing** - Real-time processing on ships and buoys
-- [ ] **Quantum computing integration** - Optimize global fleet routing
-- [ ] **AI-powered policy recommendations** - Suggest new MPA locations based on data
+| When | Milestone | Scope |
+|---|---|---|
+| Done | BlueGuard v1 (this repo) | AIS tracking and risk scores, LSTM route prediction, pollution detection pipeline, alerts for 4 Indian protected areas, React dashboard, Gemini chat assistant |
+| Sep 2026 | Revival and design | Repo fixed and restructured; SamudraSense screens designed ([docs/design](docs/design/DESIGN.md)) |
+| 10 Nov 2026 | Prototype video | End-to-end alert flow, SAR + AIS fusion on xView3, hotspot forecasts, evasion state machine and weather triage, encounter graph, explainable alerts |
+| 20–21 Jan 2027 | Grand finale | Local LLM reports, spill simulator, offline build on an RTX 3050. Stretch goal: 3D smart buoy |
 
 ---
 
-## 🏗️ System Architecture
+## Tech stack
+
+### In the code today
+
+| Layer | Technology |
+|---|---|
+| Frontend (`apps/web`) | React 18, Vite 7, Tailwind CSS 3, Leaflet + React-Leaflet, Recharts, Radix UI, Lucide, Axios |
+| API (`apps/api`) | Python 3.11, FastAPI, SQLModel, Pydantic 2, Alembic, Uvicorn |
+| Data | PostgreSQL 15 + PostGIS 3.3, GeoAlchemy2, Shapely, Fiona, PyProj |
+| Jobs | Celery on Redis 7 |
+| AI / ML | PyTorch 2.2 (LSTM route model), Ultralytics YOLOv8 (detector, no trained weights yet), Google Gemini via `google-genai` for the chat assistant |
+| Infra | Docker Compose; Supabase Postgres as an optional hosted database |
+
+### Planned for SamudraSense
+
+| Layer | Technology | Replaces |
+|---|---|---|
+| Maps | MapLibre GL JS with offline PMTiles, deck.gl data layers | Leaflet with online tiles |
+| UI | Radix Primitives with our design tokens, Observable Plot / visx, Cytoscape.js for the encounter graph | Current dashboard components |
+| Orchestration | Node.js + BullMQ on Redis (`services/orchestrator`) | Celery for the scan pipeline |
+| Edge filter | C++17 spatial grid index and geofencing that drops routine AIS early (`services/edge-filter`) | — |
+| AI / ML | YOLOv8s on Sentinel-1 SAR, Prophet + scikit-learn hotspot ranker, evasion state machine, EigenCAM, SHAP | Pollution-only detector |
+| LLM | Local 3–4B model via Ollama, 4-bit | Gemini |
+| Data sources | Copernicus Marine, Global Fishing Watch, Open-Meteo Marine, OSM | — |
+
+**Edge budget** (planning estimates; measured figures will come with the prototype): YOLOv8s at FP16 takes about 1 GB of VRAM and the LLM about 3 GB, so they take turns on the GPU. The CPU-side models need about 2 GB of RAM, the database and Redis about 3 GB, and the filter and orchestrator about 1 GB, all within a 16 GB workstation. Internet is used only to download satellite data.
+
+---
+
+## Repository layout
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                         FRONTEND                                │
-│  React + Vite + TailwindCSS + React-Leaflet + Recharts         │
-│                                                                  │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐         │
-│  │  Map View    │  │ Alert Feed   │  │ Ocean Health │         │
-│  │  (Leaflet)   │  │ (Real-time)  │  │   Charts     │         │
-│  └──────────────┘  └──────────────┘  └──────────────┘         │
-│                                                                  │
-│  ┌──────────────────────────────────────────────────┐          │
-│  │         MIA Chatbot (Gemini-powered)              │          │
-│  └──────────────────────────────────────────────────┘          │
-└─────────────────────────────────────────────────────────────────┘
-                            │
-                            │ REST API (FastAPI)
-                            ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                         BACKEND                                 │
-│  FastAPI + SQLModel + PostgreSQL/PostGIS + Redis + Celery      │
-│                                                                  │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │                    API ENDPOINTS                          │  │
-│  │  /map/layers  │ /alerts  │ /analytics  │ /chat/message  │  │
-│  └──────────────────────────────────────────────────────────┘  │
-│                                                                  │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐         │
-│  │   Vessel     │  │  Pollution   │  │     MPA      │         │
-│  │   Tracking   │  │  Detection   │  │  Compliance  │         │
-│  └──────────────┘  └──────────────┘  └──────────────┘         │
-│                                                                  │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │              AI/ML SERVICES                               │  │
-│  │  • Route Predictor (LSTM)                                 │  │
-│  │  • Pollution Detector (YOLOv8 + Ultralytics)             │  │
-│  │  • Alert Generator (Risk Scoring)                         │  │
-│  │  • MIA Chatbot (Google Gemini 2.5 Flash)                 │  │
-│  │  • Ocean Health Forecaster (Prophet)                      │  │
-│  └──────────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                      DATA SOURCES                               │
-│                                                                  │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐         │
-│  │     AIS      │  │  Copernicus  │  │   Protected  │         │
-│  │  Ship Data   │  │  Satellites  │  │ Planet APIs  │         │
-│  └──────────────┘  └──────────────┘  └──────────────┘         │
-└─────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 📁 Project Structure
-
-```
-samudrasense/
+marine_gurad/
 ├── apps/
 │   ├── api/          FastAPI backend: routes, models, services, Alembic migrations, scripts
 │   └── web/          React + Vite dashboard
-├── services/         Orchestrator (Node + BullMQ) and C++ edge filter (planned)
-├── ml/               Model training, datasets and model cards (planned)
+├── services/         Orchestrator and C++ edge filter (planned)
+├── ml/               Training code, datasets and model cards (planned)
 ├── infra/            docker-compose.yml and its .env.example
-├── docs/
-│   └── design/       Design notes (DESIGN.md) and screen mockups
-└── README.md
+└── docs/
+    └── design/       DESIGN.md, HTML screen mockups and rendered screenshots
 ```
 
 ---
 
-## 🛠️ Technology Stack
+## Running it
 
-### Frontend
-| Technology | Purpose |
-|------------|---------|
-| **React 18** | UI framework |
-| **Vite** | Build tool and dev server |
-| **TailwindCSS** | Utility-first styling + premium blue theme |
-| **React-Leaflet** | Interactive maps with OpenStreetMap |
-| **Recharts** | Data visualization (charts/graphs) |
-| **Axios** | HTTP client for API calls |
-| **Lucide React** | Modern icon library |
-| **Radix UI** | Accessible component primitives |
-| **React Markdown** | Render MIA responses with formatting |
+### With Docker (recommended)
 
-### Backend
-| Technology | Purpose |
-|------------|---------|
-| **FastAPI** | High-performance Python web framework |
-| **SQLModel** | SQL database ORM (SQLAlchemy + Pydantic) |
-| **PostgreSQL + PostGIS** | Geospatial database |
-| **Redis** | Caching and message broker |
-| **Celery** | Distributed task queue for background jobs |
-| **Pydantic** | Data validation and settings management |
-| **Uvicorn** | ASGI server |
-| **Alembic** | Database migrations |
-
-### AI/ML
-| Technology | Purpose |
-|------------|---------|
-| **Google Gemini** | Conversational AI for MIA chatbot |
-| **PyTorch** | Deep learning framework |
-| **Ultralytics YOLOv8** | Object detection for pollution |
-| **Prophet (Facebook)** | Time-series forecasting |
-| **NumPy + Pandas** | Data manipulation |
-
-### Geospatial
-| Technology | Purpose |
-|------------|---------|
-| **GeoAlchemy2** | Spatial query support in SQLAlchemy |
-| **Shapely** | Geometric operations |
-| **Fiona** | Vector data I/O |
-| **PyProj** | Coordinate transformations |
-
-### DevOps
-| Technology | Purpose |
-|------------|---------|
-| **Docker + Docker Compose** | Containerization |
-| **Supabase** | Managed PostgreSQL hosting (optional) |
-| **GitHub Actions** | CI/CD (future) |
-
----
-
-## 🚀 Quick Start
-
-### Prerequisites
-- **Docker & Docker Compose** (recommended) OR
-- **Python 3.11 or 3.12** (PyTorch 2.2 has no wheels for newer Python) and **Node.js 20.19+**
-- **PostgreSQL 15** with **PostGIS 3.3** extension
-- **Redis 7**
-- **Google Gemini API Key** (for MIA chatbot)
-
-### Option 1: Docker Compose (Recommended)
-
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/Aditya-Patil27/marine_gurad.git
-   cd marine_gurad
-   ```
-
-2. **Set up environment variables**
-   ```bash
-   cp apps/api/.env.example apps/api/.env
-   ```
-
-   Edit `apps/api/.env` and set:
-   ```env
-   # Google Gemini API
-   GEMINI_API_KEY=your_gemini_api_key_here
-   GEMINI_MODEL=gemini-2.5-flash
-   ```
-
-   Docker Compose starts a local PostGIS database and runs the Alembic migrations
-   automatically. To use Supabase instead, set `DATABASE_URL` (a `postgresql://`
-   connection string) in `infra/.env` or your shell.
-
-3. **Start all services**
-   ```bash
-   docker compose -f infra/docker-compose.yml up --build
-   ```
-
-4. **Access the application**
-   - Frontend: http://localhost:5173
-   - Backend API Docs: http://localhost:8000/docs
-   - Redis: localhost:6379
-
-### Option 2: Manual Setup
-
-#### Backend Setup
-
-1. **Create virtual environment**
-   ```bash
-   cd apps/api
-   python -m venv venv
-   source venv/bin/activate  # Windows: venv\Scripts\activate
-   ```
-
-2. **Install dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. **Set up database**
-   ```bash
-   # Create PostgreSQL database with PostGIS
-   createdb blueguard_db
-   psql blueguard_db -c "CREATE EXTENSION postgis;"
-
-   # Run migrations
-   alembic upgrade head
-
-   # Optional: load sample Marine Protected Areas
-   python scripts/load_mpas.py
-   ```
-
-4. **Run backend server**
-   ```bash
-   uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-   ```
-
-#### Frontend Setup
-
-1. **Install dependencies**
-   ```bash
-   cd apps/web
-   npm install
-   ```
-
-2. **Configure environment**
-   ```bash
-   cp .env.example .env
-   ```
-
-   Edit `apps/web/.env`:
-   ```env
-   # Empty = use the Vite dev proxy to http://127.0.0.1:8000
-   VITE_API_URL=
-   VITE_MAP_CENTER_LAT=20.0
-   VITE_MAP_CENTER_LNG=77.0
-   VITE_MAP_ZOOM=4
-   ```
-
-3. **Run development server**
-   ```bash
-   npm run dev
-   ```
-
-4. **Open browser**
-   Navigate to http://localhost:5173
-
----
-
-## 📊 API Documentation
-
-Once the backend is running, visit:
-- **Swagger UI**: http://localhost:8000/docs
-- **ReDoc**: http://localhost:8000/redoc
-
-### Key Endpoints
-
-#### Map Layers
-```http
-GET /api/v1/map/layers?layer_type=vessels&bbox=minLon,minLat,maxLon,maxLat
-GET /api/v1/map/layers?layer_type=pollution
-GET /api/v1/map/layers?layer_type=mpas
+```bash
+git clone https://github.com/Aditya-Patil27/marine_gurad.git
+cd marine_gurad
+cp apps/api/.env.example apps/api/.env   # set GEMINI_API_KEY for the chat assistant
+docker compose -f infra/docker-compose.yml up --build
 ```
 
-#### Analytics
-```http
-GET /api/v1/analytics/statistics
-GET /api/v1/analytics/ohi?timeframe=6months
+- Dashboard: http://127.0.0.1:5173
+- API docs: http://127.0.0.1:8000/docs
+
+Compose starts PostGIS, Redis, the API, a Celery worker and the frontend, and runs the database migrations on start. To use Supabase instead of the local database, set `DATABASE_URL` in `infra/.env`.
+
+If you ran an older version of this stack, reset the database volume once, because the default database name and user changed: `docker compose -f infra/docker-compose.yml down -v`.
+
+### Without Docker
+
+You need Python 3.11 (PyTorch 2.2 has no wheels for newer versions), Node.js 20.19+, PostgreSQL 15 with PostGIS, and Redis.
+
+```bash
+# API
+cd apps/api
+python -m venv venv && source venv/bin/activate   # Windows: venv\Scripts\activate
+pip install --extra-index-url https://download.pytorch.org/whl/cpu -r requirements.txt
+createdb samudrasense_db && psql samudrasense_db -c "CREATE EXTENSION postgis;"
+alembic upgrade head
+python scripts/load_mpas.py          # optional: sample protected areas
+uvicorn app.main:app --reload --port 8000
+
+# Web (second terminal)
+cd apps/web
+npm ci
+npm run dev                          # proxies /api to http://127.0.0.1:8000
 ```
 
-#### Alerts
-```http
-GET /api/v1/alerts?severity=HIGH&limit=20
-```
+### Loading data
 
-#### Chat (MIA)
-```http
-POST /api/v1/chat/message
-{
-  "message": "Show me high-risk vessels near Mumbai",
-  "conversation_history": []
-}
-```
-
-#### Data Ingestion
-```http
-POST /api/v1/ingest/ais
-POST /api/v1/ingest/pollution
-```
-
----
-
-## 🎨 UI/UX Features
-
-### Premium Blue Theme
-- **Ocean-inspired color palette** - 50-950 gradient scale
-- **Glassmorphism effects** - Backdrop blur and transparency
-- **Gradient backgrounds** - Radial and linear gradients
-- **Smooth animations** - Hover effects and transitions
-- **Responsive design** - Mobile, tablet, desktop optimized
-
-### Interactive Map
-- **Multi-layer visualization** - Vessels, pollution zones, MPAs
-- **Clickable markers** - Detailed popup information
-- **Dynamic filtering** - Toggle layers on/off
-- **Bounding box queries** - Load data for visible area only
-- **Risk-based color coding** - Green (low) → Yellow (medium) → Red (high)
-
-### Real-Time Updates
-- **Live alert feed** - New alerts appear instantly
-- **Auto-refresh statistics** - 30-second polling interval
-- **Vessel position updates** - Track ships in real-time
-- **Confidence indicators** - Visual cues for data quality
-
----
-
-## 🧪 Demo Mode
-
-For hackathons and presentations, BlueGuard includes a **demo mode** with hardcoded data:
-
-- **10 vessels** - Around Indian Ocean region
-- **5 pollution events** - Oil spills, plastic zones
-- **4 MPAs** - Gulf of Mannar, Kutch, etc.
-- **7 alerts** - MPA violations, IUU fishing
-- **No database required** - All data in-memory
-
-See [DEMO_SETUP.md](DEMO_SETUP.md) for detailed instructions.
-
----
-
-## 🧠 MIA - Marine Intelligence Assistant
-
-MIA is powered by **Google Gemini** (configurable via `GEMINI_MODEL`) and can answer:
-
-**Example Questions:**
-- "Show me all vessels near 20.5°N, 70.2°E"
-- "What pollution events were detected this week?"
-- "Which MPAs have the most violations?"
-- "Is vessel MMSI 123456789 compliant?"
-- "Explain the Ocean Health Index trend"
-
-**Function Calling:**
-MIA uses Gemini's function calling to execute:
-- `query_vessel_intel(mmsi, vessel_type, timeframe)`
-- `query_pollution_data(indicator, severity, timeframe)`
-- `get_mpa_compliance(mpa_name, metric_type)`
-
----
-
-## 🔒 Security & Privacy
-
-- **API authentication** - JWT tokens for production (future)
-- **CORS policies** - Whitelist allowed origins
-- **SQL injection prevention** - Parameterized queries via SQLModel
-- **Data anonymization** - No personally identifiable vessel information
-- **Rate limiting** - Prevent API abuse (future)
-
----
-
-## 📈 Performance Metrics
-
-- **Map layer load time**: <2 seconds for 1000+ vessels
-- **Alert generation**: Real-time (<1 second)
-- **MIA response time**: 2-5 seconds (Gemini Pro)
-- **Database query optimization**: PostGIS spatial indexes
-- **Frontend bundle size**: ~500KB (gzipped)
-
----
-
-## 🤝 Contributing
-
-We welcome contributions! Please:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-### Development Guidelines
-- Follow PEP 8 for Python code
-- Use ESLint/Prettier for JavaScript/React
-- Write unit tests for new features
-- Update documentation for API changes
-
-## 🙏 Acknowledgments
-
-- **OpenStreetMap** - Map tiles
-- **Google Gemini** - AI chatbot capabilities
-- **Copernicus/Sentinel** - Satellite imagery APIs
-- **MarineCadastre** - AIS vessel data
-- **Protected Planet** - MPA boundary data
-- **Ocean Health Index** - Ecosystem health metrics
-
----
-
-## 🔑 API Keys & Configuration
-
-### Required API Keys
-
-| Service | Purpose | Get Key |
-|---------|---------|---------|
-| **Supabase** | PostgreSQL database hosting | [supabase.com](https://supabase.com) |
-| **Google Gemini** | MIA chatbot AI | [Google AI Studio](https://makersuite.google.com/app/apikey) |
-| **Copernicus Marine** | Satellite ocean data | [Copernicus Data Store](https://data.marine.copernicus.eu/register) |
-
-### Environment Variables
-
-Create a `.env` file in the `apps/api/` directory:
-
-```env
-# Database (Supabase PostgreSQL with PostGIS)
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_ANON_KEY=your-anon-key
-DATABASE_URL=postgresql://postgres:password@db.your-project.supabase.co:5432/postgres
-
-# Security
-SECRET_KEY=your-256-bit-secret-key
-JWT_SECRET=your-jwt-secret
-
-# Google Gemini API (required for MIA chatbot)
-GEMINI_API_KEY=your-gemini-api-key
-
-# Copernicus Marine Service API
-COPERNICUS_CLIENT_ID=your-copernicus-client-id
-COPERNICUS_CLIENT_SECRET=your-copernicus-client-secret
-
-# Model Configuration
-MODEL_STORAGE_BACKEND=local
-YOLO_MODEL_PATH=models/pollution_yolo.pt
-LSTM_MODEL_PATH=models/route_lstm.pt
-```
-
----
-
-## 🧠 Model Training
-
-BlueGuard uses two ML models that need to be trained for production use:
-
-### 1. YOLO Pollution Detection Model
-
-The pollution detector uses YOLOv8 to identify oil spills, plastic debris, and algal blooms in satellite imagery.
-
-#### Dataset Preparation
-
-Create a dataset in YOLO format:
-
-```
-datasets/pollution/
-├── images/
-│   ├── train/
-│   │   ├── image001.jpg
-│   │   └── ...
-│   └── val/
-├── labels/
-│   ├── train/
-│   │   ├── image001.txt    # class x_center y_center width height
-│   │   └── ...
-│   └── val/
-└── data.yaml
-```
-
-**data.yaml:**
-```yaml
-path: ./datasets/pollution
-train: images/train
-val: images/val
-
-names:
-  0: OIL
-  1: PLASTIC
-  2: ALGAE
-```
-
-#### Training Script
-
-Create `scripts/train_yolo.py`:
-
-```python
-from ultralytics import YOLO
-import shutil
-
-# Load pretrained YOLOv8 model
-model = YOLO('yolov8n.pt')
-
-# Train on pollution dataset
-results = model.train(
-    data='datasets/pollution/data.yaml',
-    epochs=100,
-    imgsz=640,
-    batch=16,
-    name='pollution_yolo',
-    project='runs/detect'
-)
-
-# Copy trained model to models directory
-shutil.copy('runs/detect/pollution_yolo/weights/best.pt', 'models/pollution_yolo.pt')
-print("Model saved to models/pollution_yolo.pt")
-```
-
-Run training:
 ```bash
 cd apps/api
-python scripts/train_yolo.py
+python scripts/ingest_ais.py path/to/AIS.csv   # MarineCadastre-style CSV: MMSI, LAT, LON, BaseDateTime, SOG, COG, ...
+python scripts/ingest_sentinel.py              # satellite pollution detections (needs trained weights)
 ```
 
-### 2. LSTM Route Prediction Model
-
-The route predictor uses an LSTM neural network to forecast vessel trajectories.
-
-#### Dataset Preparation
-
-Create `scripts/prepare_lstm_data.py`:
-
-```python
-import numpy as np
-from app.database import SessionLocal
-from app.models.vessel import VesselTrack
-from sqlmodel import select
-from geoalchemy2.shape import to_shape
-
-def prepare_trajectory_data(sequence_length=10, prediction_steps=6):
-    """Extract trajectory sequences from AIS database"""
-    db = SessionLocal()
-
-    query = select(VesselTrack).order_by(VesselTrack.mmsi, VesselTrack.timestamp)
-    tracks = db.exec(query).all()
-
-    sequences, targets = [], []
-    current_mmsi, current_positions = None, []
-
-    for track in tracks:
-        if track.mmsi != current_mmsi:
-            current_mmsi = track.mmsi
-            current_positions = []
-
-        # Extract coordinates from geometry
-        point = to_shape(track.location)
-        current_positions.append([point.x, point.y])
-
-        # Create sequences when enough positions available
-        if len(current_positions) >= sequence_length + prediction_steps:
-            seq = current_positions[-sequence_length-prediction_steps:-prediction_steps]
-            target = current_positions[-prediction_steps:]
-            sequences.append(seq)
-            targets.append(target)
-
-    db.close()
-    return np.array(sequences), np.array(targets)
-
-if __name__ == "__main__":
-    X, y = prepare_trajectory_data()
-    np.save('datasets/lstm/X_train.npy', X)
-    np.save('datasets/lstm/y_train.npy', y)
-    print(f"Saved {len(X)} trajectory sequences")
-```
-
-#### Training Script
-
-Create `scripts/train_lstm.py`:
-
-```python
-import torch
-import torch.nn as nn
-import torch.optim as optim
-from torch.utils.data import DataLoader, TensorDataset
-import numpy as np
-from app.services.route_predictor import VesselLSTM
-
-# Load data
-X = np.load('datasets/lstm/X_train.npy')
-y = np.load('datasets/lstm/y_train.npy')
-
-# Normalize
-mean, std = X.mean(axis=(0, 1)), X.std(axis=(0, 1)) + 1e-6
-X_norm = (X - mean) / std
-y_norm = (y - mean) / std
-
-# Create dataloader
-dataset = TensorDataset(torch.FloatTensor(X_norm), torch.FloatTensor(y_norm[:, 0, :]))
-dataloader = DataLoader(dataset, batch_size=32, shuffle=True)
-
-# Train
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
-model = VesselLSTM(input_size=2, hidden_size=64, num_layers=2, output_size=2).to(device)
-criterion, optimizer = nn.MSELoss(), optim.Adam(model.parameters(), lr=0.001)
-
-for epoch in range(100):
-    model.train()
-    total_loss = 0
-    for batch_X, batch_y in dataloader:
-        optimizer.zero_grad()
-        loss = criterion(model(batch_X.to(device)), batch_y.to(device))
-        loss.backward()
-        optimizer.step()
-        total_loss += loss.item()
-
-    if (epoch + 1) % 10 == 0:
-        print(f'Epoch [{epoch+1}/100], Loss: {total_loss/len(dataloader):.6f}')
-
-torch.save(model.state_dict(), 'models/route_lstm.pt')
-print("Model saved to models/route_lstm.pt")
-```
-
-Run training:
-```bash
-cd apps/api
-mkdir -p datasets/lstm models
-python scripts/prepare_lstm_data.py
-python scripts/train_lstm.py
-```
-
-### Model Storage Options
-
-BlueGuard supports multiple storage backends for trained models:
-
-| Backend | Configuration | Use Case |
-|---------|--------------|----------|
-| **Local** | `MODEL_STORAGE_BACKEND=local` | Development, single server |
-| **Supabase** | `MODEL_STORAGE_BACKEND=supabase` | Cloud deployment with Supabase |
-| **AWS S3** | `MODEL_STORAGE_BACKEND=s3` | Production cloud deployment |
-| **HTTP** | `MODEL_STORAGE_BACKEND=http` | CDN-hosted models |
-
-Example S3 configuration:
-```env
-MODEL_STORAGE_BACKEND=s3
-AWS_ACCESS_KEY_ID=your-access-key
-AWS_SECRET_ACCESS_KEY=your-secret-key
-AWS_S3_MODEL_BUCKET=blueguard-models
-YOLO_MODEL_REMOTE_PATH=pollution_yolo_v1.0.0.pt
-LSTM_MODEL_REMOTE_PATH=route_lstm_v1.0.0.pt
-```
+Trained model weights are not committed. The API looks for them in `apps/api/models/` (`pollution_yolo.pt`, `route_lstm.pt`). Without them, route prediction falls back to linear extrapolation and satellite detection returns 503.
 
 ---
 
-## 📊 Data Ingestion
+## API
 
-### AIS Vessel Data
+All routes are under `/api/v1`. Full reference at `/docs` when the API is running.
 
-Ingest AIS data from Marine Cadastre CSV files:
-
-```bash
-# Using command line argument
-python scripts/ingest_ais.py path/to/AIS_data.csv
-
-# Using environment variable
-export AIS_CSV_PATH=/path/to/AIS_data.csv
-python scripts/ingest_ais.py
-```
-
-**Expected CSV columns:**
-| Column | Type | Description |
-|--------|------|-------------|
-| `MMSI` | int | Maritime Mobile Service Identity (required) |
-| `LAT`, `LON` | float | Geographic coordinates (required) |
-| `BaseDateTime` | datetime | ISO8601 timestamp (required) |
-| `SOG`, `COG` | float | Speed/Course over ground |
-| `VesselType` | int | AIS vessel type code |
-| `VesselName` | string | Ship name |
-
-### Copernicus Satellite Data
-
-The Copernicus Marine Service provides ocean observation data. Use your credentials to access:
-
-- **Sea surface temperature** - Climate monitoring
-- **Chlorophyll concentration** - Algal bloom detection
-- **Ocean color** - Pollution identification
-- **Wave/current data** - Navigation assistance
-
-```python
-# Example: Fetching Copernicus data
-import requests
-
-auth_url = "https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect/token"
-response = requests.post(auth_url, data={
-    "grant_type": "client_credentials",
-    "client_id": "your-client-id",
-    "client_secret": "your-client-secret"
-})
-access_token = response.json()["access_token"]
-```
+| Method | Route | Purpose |
+|---|---|---|
+| GET | `/map/layers?layer_type=vessels\|pollution\|mpas&bbox=minLon,minLat,maxLon,maxLat` | GeoJSON map layers |
+| GET | `/alerts/?severity=HIGH&limit=20` | Alerts sorted by severity and risk score |
+| GET | `/analytics/statistics` | Headline counts for the dashboard |
+| GET | `/analytics/ohi?days=180` | Ocean Health Index time series |
+| POST | `/ingest/ais` | Ingest AIS positions |
+| POST | `/ingest/satellite-image` | Run detection on a satellite image URL |
+| POST | `/chat/message` | Ask the assistant (Gemini with database tools) |
 
 ---
 
-**Built with 💙 for the oceans**
+## Security notes
 
-*BlueGuard - Protecting our blue planet through intelligent surveillance*
+- Never commit `.env` files. Use the `.env.example` files as templates.
+- Ingest routes have no authentication yet. Don't expose the API publicly.
+- Early commits in this repo contained a Gemini API key and a Supabase service-role key. Both must be treated as leaked and rotated.
+
+---
+
+## Data and acknowledgements
+
+Global Fishing Watch, Copernicus / Sentinel, xView3-SAR, MarineCadastre AIS, Protected Planet (WDPA), Open-Meteo, NOAA GNOME and OpenStreetMap.
+
+Protected-area boundaries and sample data in this repo are indicative placeholders. Replace them with official WDPA data before any real use.
