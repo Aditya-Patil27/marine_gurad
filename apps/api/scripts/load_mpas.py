@@ -6,7 +6,7 @@ Script to load Marine Protected Areas from WDPA shapefile into PostGIS
 import sys
 from pathlib import Path
 
-# Allow running as `python scripts/<name>.py` from backend/ (makes `app` importable)
+# Allow running as `python scripts/<name>.py` from apps/api/ (makes `app` importable)
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from shapely.geometry import shape

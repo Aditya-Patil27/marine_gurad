@@ -173,58 +173,16 @@ To safeguard our oceans through intelligent surveillance, predictive analytics, 
 ## 📁 Project Structure
 
 ```
-blue_guard/
-├── backend/
-│   ├── app/
-│   │   ├── api/              # FastAPI route handlers
-│   │   │   ├── map.py        # GeoJSON vessel/pollution/MPA layers
-│   │   │   ├── alerts.py     # Alert feed endpoint
-│   │   │   ├── analytics.py  # Statistics and OHI data
-│   │   │   ├── chat.py       # MIA chatbot interface
-│   │   │   └── ingest.py     # Data ingestion endpoints
-│   │   ├── models/           # SQLModel database models
-│   │   │   ├── vessel.py     # VesselTrack, VesselType
-│   │   │   ├── pollution.py  # PollutionEvent, PollutionType
-│   │   │   ├── mpa.py        # MarineProtectedArea
-│   │   │   └── health.py     # OceanHealthMetric
-│   │   ├── services/         # Business logic
-│   │   │   ├── chatbot.py    # MIA - Gemini integration
-│   │   │   ├── alert_generator.py  # Predictive alerts
-│   │   │   ├── pollution_detector.py  # YOLOv8 model
-│   │   │   ├── route_predictor.py  # LSTM trajectory
-│   │   │   └── agent_lightning.py  # RLAF integration
-│   │   ├── schemas/          # Pydantic response models
-│   │   ├── database.py       # PostgreSQL + PostGIS setup
-│   │   ├── config.py         # Environment configuration
-│   │   ├── demo_data.py      # Hardcoded demo data
-│   │   └── main.py           # FastAPI app initialization
-│   ├── scripts/              # Data ingestion scripts
-│   │   ├── ingest_ais.py     # AIS data loader
-│   │   ├── ingest_sentinel.py  # Satellite imagery
-│   │   └── load_mpas.py      # MPA boundary loader
-│   ├── requirements.txt      # Python dependencies
-│   └── Dockerfile
-├── frontend/
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── map/
-│   │   │   │   └── BlueGuardMap.jsx  # Leaflet map
-│   │   │   ├── dashboard/
-│   │   │   │   ├── AlertFeed.jsx     # Live alerts
-│   │   │   │   ├── StatsPanel.jsx    # Key metrics
-│   │   │   │   └── HealthCharts.jsx  # OHI graphs
-│   │   │   └── chat/
-│   │   │       └── ChatBot.jsx       # MIA UI
-│   │   ├── App.jsx           # Main app component
-│   │   └── main.jsx          # Entry point
-│   ├── package.json
-│   ├── tailwind.config.js    # Premium blue theme
-│   ├── vite.config.js
-│   └── Dockerfile
-├── docker-compose.yml        # Multi-container orchestration
-├── .env.example              # Environment template
-├── DEMO_SETUP.md             # Hackathon demo guide
-└── README.md                 # This file
+samudrasense/
+├── apps/
+│   ├── api/          FastAPI backend: routes, models, services, Alembic migrations, scripts
+│   └── web/          React + Vite dashboard
+├── services/         Orchestrator (Node + BullMQ) and C++ edge filter (planned)
+├── ml/               Model training, datasets and model cards (planned)
+├── infra/            docker-compose.yml and its .env.example
+├── docs/
+│   └── design/       Design notes (DESIGN.md) and screen mockups
+└── README.md
 ```
 
 ---
@@ -301,10 +259,10 @@ blue_guard/
 
 2. **Set up environment variables**
    ```bash
-   cp backend/.env.example backend/.env
+   cp apps/api/.env.example apps/api/.env
    ```
 
-   Edit `backend/.env` and set:
+   Edit `apps/api/.env` and set:
    ```env
    # Google Gemini API
    GEMINI_API_KEY=your_gemini_api_key_here
@@ -313,11 +271,11 @@ blue_guard/
 
    Docker Compose starts a local PostGIS database and runs the Alembic migrations
    automatically. To use Supabase instead, set `DATABASE_URL` (a `postgresql://`
-   connection string) in a root `.env` file or your shell.
+   connection string) in `infra/.env` or your shell.
 
 3. **Start all services**
    ```bash
-   docker-compose up --build
+   docker compose -f infra/docker-compose.yml up --build
    ```
 
 4. **Access the application**
@@ -331,7 +289,7 @@ blue_guard/
 
 1. **Create virtual environment**
    ```bash
-   cd backend
+   cd apps/api
    python -m venv venv
    source venv/bin/activate  # Windows: venv\Scripts\activate
    ```
@@ -363,7 +321,7 @@ blue_guard/
 
 1. **Install dependencies**
    ```bash
-   cd frontend
+   cd apps/web
    npm install
    ```
 
@@ -372,7 +330,7 @@ blue_guard/
    cp .env.example .env
    ```
 
-   Edit `frontend/.env`:
+   Edit `apps/web/.env`:
    ```env
    # Empty = use the Vite dev proxy to http://127.0.0.1:8000
    VITE_API_URL=
@@ -550,7 +508,7 @@ We welcome contributions! Please:
 
 ### Environment Variables
 
-Create a `.env` file in the `backend/` directory:
+Create a `.env` file in the `apps/api/` directory:
 
 ```env
 # Database (Supabase PostgreSQL with PostGIS)
@@ -644,7 +602,7 @@ print("Model saved to models/pollution_yolo.pt")
 
 Run training:
 ```bash
-cd backend
+cd apps/api
 python scripts/train_yolo.py
 ```
 
@@ -748,7 +706,7 @@ print("Model saved to models/route_lstm.pt")
 
 Run training:
 ```bash
-cd backend
+cd apps/api
 mkdir -p datasets/lstm models
 python scripts/prepare_lstm_data.py
 python scripts/train_lstm.py

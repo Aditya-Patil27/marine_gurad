@@ -1,10 +1,13 @@
+# Run from the repo root: docker compose -f infra/docker-compose.yml up --build
+name: samudrasense
+
 services:
   # Local PostGIS for development.
-  # To use Supabase instead, set DATABASE_URL in your shell or a root .env file
+  # To use Supabase instead, set DATABASE_URL in your shell or in infra/.env
   # (postgresql://... connection string, NOT the https:// SUPABASE_URL).
   postgres:
     image: postgis/postgis:15-3.3
-    container_name: blueguard_postgres
+    container_name: samudrasense_postgres
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-blueguard}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-blueguard_secret}
@@ -21,7 +24,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: blueguard_redis
+    container_name: samudrasense_redis
     ports:
       - "6379:6379"
     healthcheck:
@@ -32,23 +35,23 @@ services:
 
   backend:
     build:
-      context: ./backend
+      context: ../apps/api
       dockerfile: Dockerfile
-    container_name: blueguard_backend
+    container_name: samudrasense_backend
     # Apply database migrations before starting the API
     command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
     ports:
       - "8000:8000"
-    # API keys (GEMINI_API_KEY etc.) come from backend/.env; values under `environment` win
+    # API keys (GEMINI_API_KEY etc.) come from apps/api/.env; values under `environment` win
     env_file:
-      - path: ./backend/.env
+      - path: ../apps/api/.env
         required: false
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql://blueguard:blueguard_secret@postgres:5432/blueguard_db}
       REDIS_URL: redis://redis:6379/0
       PYTHONUNBUFFERED: 1
     volumes:
-      - ./backend:/app
+      - ../apps/api:/app
       - model_weights:/app/models
     depends_on:
       postgres:
@@ -58,18 +61,18 @@ services:
 
   celery_worker:
     build:
-      context: ./backend
+      context: ../apps/api
       dockerfile: Dockerfile
-    container_name: blueguard_celery
+    container_name: samudrasense_celery
     command: celery -A app.tasks.celery_app worker --loglevel=info
     env_file:
-      - path: ./backend/.env
+      - path: ../apps/api/.env
         required: false
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql://blueguard:blueguard_secret@postgres:5432/blueguard_db}
       REDIS_URL: redis://redis:6379/0
     volumes:
-      - ./backend:/app
+      - ../apps/api:/app
       - model_weights:/app/models
     depends_on:
       postgres:
@@ -79,16 +82,16 @@ services:
 
   frontend:
     build:
-      context: ./frontend
+      context: ../apps/web
       dockerfile: Dockerfile
-    container_name: blueguard_frontend
+    container_name: samudrasense_frontend
     ports:
       - "5173:5173"
     environment:
       # Browser calls /api on the frontend origin; Vite proxies to the backend container
       API_PROXY_TARGET: http://backend:8000
     volumes:
-      - ./frontend:/app
+      - ../apps/web:/app
       - /app/node_modules
     depends_on:
       - backend

@@ -6,7 +6,7 @@ Script to ingest AIS vessel data from CSV files (Marine Cadastre format)
 import sys
 from pathlib import Path
 
-# Allow running as `python scripts/<name>.py` from backend/ (makes `app` importable)
+# Allow running as `python scripts/<name>.py` from apps/api/ (makes `app` importable)
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import pandas as pd
