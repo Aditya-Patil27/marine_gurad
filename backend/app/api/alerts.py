@@ -20,8 +20,8 @@ class Alert(BaseModel):
     metadata: Optional[dict] = None
 
 @router.get("/", response_model=List[Alert])
-async def get_alerts(
-    limit: int = Query(50, le=100),
+def get_alerts(
+    limit: int = Query(50, ge=1, le=100),
     severity: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
@@ -40,7 +40,9 @@ async def get_alerts(
 
     for alert in raw_alerts:
         # Filter by severity if specified
-        if severity and alert["severity"] != severity.lower():
+        severity_map = {"critical": "HIGH", "high": "HIGH", "medium": "MEDIUM", "low": "LOW"}
+        severity_upper = severity_map.get(alert["severity"], "MEDIUM")
+        if severity and severity_upper != severity.upper():
             continue
 
         # Extract location directly from alert data (no additional query needed)
@@ -63,10 +65,6 @@ async def get_alerts(
             title = f"Vessel Near MPA - {alert.get('mpa_name', 'Unknown MPA')}"
             description = f"Vessel {alert['mmsi']} is within {alert.get('distance_km', 0):.2f}km of {alert.get('mpa_name', 'protected area')}"
 
-        # Map severity to uppercase
-        severity_map = {"critical": "HIGH", "high": "HIGH", "medium": "MEDIUM", "low": "LOW"}
-        severity_upper = severity_map.get(alert["severity"], "MEDIUM")
-
         # Generate unique alert ID using UUID to prevent collisions
         # when same vessel triggers multiple alerts of the same type
         alert_id = f"{alert['type']}_{alert['mmsi']}_{uuid.uuid4().hex[:8]}"
@@ -82,8 +80,8 @@ async def get_alerts(
             "metadata": {k: v for k, v in alert.items() if k not in ["type", "severity", "mmsi", "lat", "lon"]}
         })
 
-    # Sort by severity (HIGH > MEDIUM > LOW) and timestamp
+    # Sort by severity (HIGH first), then risk score (highest first)
     severity_order = {"HIGH": 0, "MEDIUM": 1, "LOW": 2}
-    alerts.sort(key=lambda x: (severity_order.get(x["severity"], 3), x["timestamp"]), reverse=True)
+    alerts.sort(key=lambda x: (severity_order.get(x["severity"], 3), -(x["metadata"].get("risk_score") or 0)))
 
     return alerts[:limit]

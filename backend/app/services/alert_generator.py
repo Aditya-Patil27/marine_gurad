@@ -99,7 +99,13 @@ class AlertGenerator:
                 m.id as mpa_id,
                 ST_AsGeoJSON(m.boundary) as mpa_boundary,
                 ST_Distance(v.location::geography, m.boundary::geography) as distance_meters
-            FROM vessel_tracks v
+            FROM (
+                -- Latest position per vessel, so each vessel yields at most one alert
+                SELECT DISTINCT ON (mmsi) mmsi, vessel_type, risk_score, speed, location
+                FROM vessel_tracks
+                WHERE timestamp > NOW() - INTERVAL '1 hour'
+                ORDER BY mmsi, timestamp DESC
+            ) v
             CROSS JOIN LATERAL (
                 SELECT id, name, boundary
                 FROM marine_protected_areas
@@ -107,8 +113,7 @@ class AlertGenerator:
                 ORDER BY ST_Distance(v.location::geography, boundary::geography)
                 LIMIT 1
             ) m
-            WHERE v.timestamp > NOW() - INTERVAL '1 hour'
-            AND v.risk_score > 0.3
+            WHERE v.risk_score > 0.3
         """)
         
         result = self.db.execute(query)
@@ -117,9 +122,9 @@ class AlertGenerator:
             # Get vessel position history for prediction
             positions = self._get_vessel_history(row.mmsi)
             
-            # Need at least 3 positions for prediction
-            if len(positions) < 3:
-                positions = [(row.lon, row.lat)]  # Use current position only
+            # Predictor falls back to linear extrapolation for short histories
+            if not positions:
+                positions = [(row.lon, row.lat)]
             
             # Predict future trajectory using LSTM
             predicted_trajectory = self.route_predictor.predict_trajectory(

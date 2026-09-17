@@ -8,7 +8,8 @@ from datetime import datetime
 
 from app.services.chatbot import mia
 
-router = APIRouter(prefix="/chat", tags=["chat"])
+# Prefix is applied in main.py; setting it here too produced /api/v1/chat/chat/*
+router = APIRouter()
 
 
 class ChatMessage(BaseModel):
@@ -55,7 +56,6 @@ async def send_message(request: ChatRequest):
     and provide insights with source citations and confidence scores.
     """
     try:
-        # Convert conversation history to OpenAI format
         history = []
         if request.conversation_history:
             for msg in request.conversation_history:

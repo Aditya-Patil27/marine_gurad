@@ -42,7 +42,7 @@ def validate_bbox_param(bbox: Optional[str]) -> Optional[BoundingBox]:
 
 
 @router.get("/layers", response_model=dict)
-async def get_map_layers(
+def get_map_layers(
     layer_type: str = Query(..., description="Layer type: vessels, pollution, or mpas"),
     bbox: Optional[str] = Query(None, description="Bounding box: minLon,minLat,maxLon,maxLat"),
     db: Session = Depends(get_db)
@@ -58,27 +58,27 @@ async def get_map_layers(
     validated_bbox = validate_bbox_param(bbox)
 
     if layer_type == "vessels":
-        return await get_vessels_layer(validated_bbox, db)
+        return get_vessels_layer(validated_bbox, db)
     elif layer_type == "pollution":
-        return await get_pollution_layer(validated_bbox, db)
+        return get_pollution_layer(validated_bbox, db)
     elif layer_type == "mpas":
-        return await get_mpas_layer(validated_bbox, db)
+        return get_mpas_layer(validated_bbox, db)
     else:
         raise HTTPException(
             status_code=400,
             detail=f"Invalid layer_type: '{layer_type}'. Must be one of: vessels, pollution, mpas"
         )
 
-async def get_vessels_layer(bbox: Optional[BoundingBox], db: Session):
+def get_vessels_layer(bbox: Optional[BoundingBox], db: Session):
     """
-    Fetch vessel tracks as GeoJSON from database.
+    Fetch the latest position of each vessel seen in the last hour as GeoJSON.
     Uses database-level coordinate extraction for better performance.
     """
 
     # Build query - PostgreSQL generates coordinates directly, avoiding Python-side geometry parsing
     if bbox:
         query = text("""
-            SELECT
+            SELECT DISTINCT ON (mmsi)
                 mmsi,
                 vessel_type,
                 flag,
@@ -105,12 +105,12 @@ async def get_vessels_layer(bbox: Optional[BoundingBox], db: Session):
                 location,
                 ST_MakeEnvelope(:min_lon, :min_lat, :max_lon, :max_lat, 4326)
             )
-            ORDER BY timestamp DESC
+            ORDER BY mmsi, timestamp DESC
         """)
         result = db.execute(query, bbox.to_dict())
     else:
         query = text("""
-            SELECT
+            SELECT DISTINCT ON (mmsi)
                 mmsi,
                 vessel_type,
                 flag,
@@ -133,7 +133,7 @@ async def get_vessels_layer(bbox: Optional[BoundingBox], db: Session):
                 transceiver_class
             FROM vessel_tracks
             WHERE timestamp > NOW() - INTERVAL '1 hour'
-            ORDER BY timestamp DESC
+            ORDER BY mmsi, timestamp DESC
         """)
         result = db.execute(query)
 
@@ -189,7 +189,7 @@ async def get_vessels_layer(bbox: Optional[BoundingBox], db: Session):
 
     return {"type": "FeatureCollection", "features": features}
 
-async def get_pollution_layer(bbox: Optional[BoundingBox], db: Session):
+def get_pollution_layer(bbox: Optional[BoundingBox], db: Session):
     """
     Fetch pollution events as GeoJSON from database.
     
@@ -255,7 +255,7 @@ async def get_pollution_layer(bbox: Optional[BoundingBox], db: Session):
     
     return {"type": "FeatureCollection", "features": []}
 
-async def get_mpas_layer(bbox: Optional[BoundingBox], db: Session):
+def get_mpas_layer(bbox: Optional[BoundingBox], db: Session):
     """
     Fetch Marine Protected Areas as GeoJSON from database.
     

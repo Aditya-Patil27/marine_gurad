@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import text, func
+from app.config import settings
 from app.database import get_db
 from app.schemas.health import OHITimeSeries
 from app.models.health import OceanHealthMetric
@@ -13,9 +14,9 @@ from datetime import datetime, timedelta
 router = APIRouter()
 
 @router.get("/ohi", response_model=OHITimeSeries)
-async def get_ocean_health_index(
+def get_ocean_health_index(
     region_id: int = Query(1, description="Region ID"),
-    days: int = Query(30, description="Number of days to fetch"),
+    days: int = Query(30, ge=1, le=365, description="Number of days to fetch"),
     db: Session = Depends(get_db)
 ):
     """Get Ocean Health Index time series data from database"""
@@ -47,15 +48,7 @@ async def get_ocean_health_index(
         ohi_scores.append(row.ohi_score or 0.0)
         temperatures.append(row.temperature or 0.0)
         ph_values.append(row.ph or 0.0)
-        forecasts.append(row.forecasted_score or 0.0)
-
-    # If no data, return empty arrays
-    if not dates:
-        dates = []
-        ohi_scores = []
-        temperatures = []
-        ph_values = []
-        forecasts = []
+        forecasts.append(row.forecasted_score)
 
     return {
         "dates": dates,
@@ -66,7 +59,7 @@ async def get_ocean_health_index(
     }
 
 @router.get("/statistics")
-async def get_statistics(db: Session = Depends(get_db)):
+def get_statistics(db: Session = Depends(get_db)):
     """Get overall platform statistics from database"""
 
     # Count active vessels (last 24 hours)
@@ -87,6 +80,16 @@ async def get_statistics(db: Session = Depends(get_db)):
     """)
     dark_vessels_result = db.execute(dark_vessels_query).fetchone()
     dark_vessels = dark_vessels_result.count if dark_vessels_result else 0
+
+    # Count high-risk vessels (the dashboard's "High Risk" tile)
+    high_risk_query = text("""
+        SELECT COUNT(DISTINCT mmsi) as count
+        FROM vessel_tracks
+        WHERE risk_score > :threshold
+        AND timestamp > NOW() - INTERVAL '24 hours'
+    """)
+    high_risk_result = db.execute(high_risk_query, {"threshold": settings.IUU_RISK_THRESHOLD}).fetchone()
+    high_risk_vessels = high_risk_result.count if high_risk_result else 0
 
     # Count pollution events (last 7 days)
     pollution_query = text("""
@@ -117,6 +120,7 @@ async def get_statistics(db: Session = Depends(get_db)):
     return {
         "active_vessels": active_vessels,
         "dark_vessels": dark_vessels,
+        "high_risk_vessels": high_risk_vessels,
         "pollution_events": pollution_events,
         "mpas_monitored": mpas_monitored,
         "avg_ocean_health": avg_ohi,

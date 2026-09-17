@@ -4,47 +4,38 @@ High-precision analytical agent for maritime data analysis using Google Gemini
 """
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
-import json
-import google.generativeai as genai
-from sqlmodel import Session, select
+import asyncio
+from google import genai
+from google.genai import types
+from sqlmodel import select
 from app.config import settings
-from app.models.vessel import VesselTrack
-from app.models.pollution import PollutionEvent
+from app.models.vessel import VesselTrack, VesselType
+from app.models.pollution import PollutionEvent, PollutionType
 from app.models.mpa import MarineProtectedArea
 from app.database import SessionLocal
+
+# Upper bound on model -> tool -> model round trips for a single user message
+MAX_TOOL_ROUNDS = 3
 
 
 class MarineIntelligenceAssistant:
     """MIA - Marine Intelligence Assistant with Google Gemini"""
 
     def __init__(self):
-        self._model = None
-        self._configured = False
+        self._client: Optional[genai.Client] = None
         self.tools = self._define_tools()
 
-    def _ensure_configured(self):
-        """Lazily configure Gemini API to avoid startup crashes if key is missing"""
-        if self._configured:
-            return
-
-        if not settings.GEMINI_API_KEY:
-            raise ValueError(
-                "GEMINI_API_KEY must be set to use the MIA chatbot. "
-                "Please configure it in your .env file."
-            )
-
-        genai.configure(api_key=settings.GEMINI_API_KEY)
-        self._model = genai.GenerativeModel(
-            model_name='gemini-1.5-pro',
-            system_instruction=self._build_system_prompt()
-        )
-        self._configured = True
-
     @property
-    def model(self):
-        """Get the Gemini model, configuring on first access"""
-        self._ensure_configured()
-        return self._model
+    def client(self) -> genai.Client:
+        """Lazily create the Gemini client to avoid startup crashes if key is missing"""
+        if self._client is None:
+            if not settings.GEMINI_API_KEY:
+                raise ValueError(
+                    "GEMINI_API_KEY must be set to use the MIA chatbot. "
+                    "Please configure it in your .env file."
+                )
+            self._client = genai.Client(api_key=settings.GEMINI_API_KEY)
+        return self._client
 
     def _build_system_prompt(self) -> str:
         return """You are MIA (Marine Intelligence Assistant), analyzing maritime data for BlueGuard Platform.
@@ -62,48 +53,67 @@ Capabilities:
 - Marine Protected Area compliance
 - Platform usage guidance"""
 
-    def _define_tools(self) -> List[Any]:
+    def _define_tools(self) -> List[types.Tool]:
         """Define Gemini function calling tools"""
+        string = types.Schema(type=types.Type.STRING)
+        integer = types.Schema(type=types.Type.INTEGER)
+        vessel_types = ", ".join(t.value for t in VesselType)
+        pollution_types = ", ".join(t.value for t in PollutionType)
         return [
-            genai.protos.Tool(
+            types.Tool(
                 function_declarations=[
-                    genai.protos.FunctionDeclaration(
+                    types.FunctionDeclaration(
                         name="query_vessel_intel",
                         description="Get vessel AIS data and positions",
-                        parameters=genai.protos.Schema(
-                            type=genai.protos.Type.OBJECT,
+                        parameters=types.Schema(
+                            type=types.Type.OBJECT,
                             properties={
-                                "mmsi": genai.protos.Schema(type=genai.protos.Type.STRING),
-                                "vessel_type": genai.protos.Schema(type=genai.protos.Type.STRING),
-                                "timeframe": genai.protos.Schema(type=genai.protos.Type.STRING),
-                                "limit": genai.protos.Schema(type=genai.protos.Type.INTEGER)
-                            }
-                        )
+                                "mmsi": string,
+                                "vessel_type": types.Schema(
+                                    type=types.Type.STRING,
+                                    description=f"One of: {vessel_types}",
+                                ),
+                                "timeframe": types.Schema(
+                                    type=types.Type.STRING,
+                                    description="'current' (24h), 'week', or 'all'",
+                                ),
+                                "limit": integer,
+                            },
+                        ),
                     ),
-                    genai.protos.FunctionDeclaration(
+                    types.FunctionDeclaration(
                         name="query_pollution_data",
                         description="Retrieve pollution events",
-                        parameters=genai.protos.Schema(
-                            type=genai.protos.Type.OBJECT,
+                        parameters=types.Schema(
+                            type=types.Type.OBJECT,
                             properties={
-                                "indicator": genai.protos.Schema(type=genai.protos.Type.STRING),
-                                "severity": genai.protos.Schema(type=genai.protos.Type.STRING),
-                                "timeframe": genai.protos.Schema(type=genai.protos.Type.STRING),
-                                "limit": genai.protos.Schema(type=genai.protos.Type.INTEGER)
-                            }
-                        )
+                                "indicator": types.Schema(
+                                    type=types.Type.STRING,
+                                    description=f"'all' or one of: {pollution_types}",
+                                ),
+                                "severity": types.Schema(
+                                    type=types.Type.STRING,
+                                    description="Minimum severity from 0 to 1",
+                                ),
+                                "timeframe": types.Schema(
+                                    type=types.Type.STRING,
+                                    description="'current' (7 days), 'month', or 'all'",
+                                ),
+                                "limit": integer,
+                            },
+                        ),
                     ),
-                    genai.protos.FunctionDeclaration(
+                    types.FunctionDeclaration(
                         name="get_mpa_compliance",
                         description="Get Marine Protected Area data",
-                        parameters=genai.protos.Schema(
-                            type=genai.protos.Type.OBJECT,
+                        parameters=types.Schema(
+                            type=types.Type.OBJECT,
                             properties={
-                                "mpa_name": genai.protos.Schema(type=genai.protos.Type.STRING),
-                                "metric_type": genai.protos.Schema(type=genai.protos.Type.STRING)
-                            }
-                        )
-                    )
+                                "mpa_name": string,
+                                "metric_type": string,
+                            },
+                        ),
+                    ),
                 ]
             )
         ]
@@ -112,56 +122,45 @@ Capabilities:
         """Process user message with conversation memory"""
         try:
             # Convert conversation history to Gemini format
-            gemini_history = []
-            if conversation_history:
-                for entry in conversation_history:
-                    role = "user" if entry.get("role") == "user" else "model"
-                    gemini_history.append({
-                        "role": role,
-                        "parts": [{"text": entry.get("content", "")}]
-                    })
-
-            # Start chat with history to preserve context
-            chat = self.model.start_chat(history=gemini_history)
-            response = chat.send_message(message, tools=self.tools)
-
-            # Check for function calls
-            function_calls = []
-            if response.candidates and response.candidates[0].content.parts:
-                for part in response.candidates[0].content.parts:
-                    if hasattr(part, 'function_call') and part.function_call:
-                        fc = part.function_call
-                        function_calls.append({'name': fc.name, 'args': dict(fc.args)})
-
-            if not function_calls:
-                return {
-                    "response": response.text,
-                    "tool_calls": [],
-                    "data_confidence": 100,
-                    "sources": ["MIA Knowledge Base"]
-                }
-
-            # Execute tools
-            tool_results = []
-            for fc in function_calls:
-                result = await self._execute_tool(fc['name'], fc['args'])
-                tool_results.append({"name": fc['name'], "arguments": fc['args'], "result": result})
-
-            # Get final response
-            function_responses = [
-                genai.protos.Part(
-                    function_response=genai.protos.FunctionResponse(
-                        name=r['name'],
-                        response={"result": r['result']}
-                    )
+            gemini_history = [
+                types.Content(
+                    role="user" if entry.get("role") == "user" else "model",
+                    parts=[types.Part(text=entry.get("content", ""))],
                 )
-                for r in tool_results
+                for entry in (conversation_history or [])
             ]
 
-            final_response = chat.send_message(genai.protos.Content(parts=function_responses))
+            # Start chat with history to preserve context
+            chat = self.client.aio.chats.create(
+                model=settings.GEMINI_MODEL,
+                config=types.GenerateContentConfig(
+                    system_instruction=self._build_system_prompt(),
+                    tools=self.tools,
+                ),
+                history=gemini_history,
+            )
+            response = await chat.send_message(message)
+
+            # Execute requested tools until the model produces a final answer
+            tool_results = []
+            for _ in range(MAX_TOOL_ROUNDS):
+                function_calls = response.function_calls or []
+                if not function_calls:
+                    break
+
+                function_responses = []
+                for fc in function_calls:
+                    args = dict(fc.args or {})
+                    result = await self._execute_tool(fc.name, args)
+                    tool_results.append({"name": fc.name, "arguments": args, "result": result})
+                    function_responses.append(
+                        types.Part.from_function_response(name=fc.name, response={"result": result})
+                    )
+
+                response = await chat.send_message(function_responses)
 
             return {
-                "response": final_response.text,
+                "response": response.text or "I couldn't produce an answer from the available data.",
                 "tool_calls": tool_results,
                 "data_confidence": self._calculate_confidence(tool_results),
                 "sources": self._extract_sources(tool_results)
@@ -177,16 +176,31 @@ Capabilities:
             }
 
     async def _execute_tool(self, function_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute tool"""
-        if function_name == "query_vessel_intel":
-            return await self._query_vessel_intel(**arguments)
-        elif function_name == "query_pollution_data":
-            return await self._query_pollution_data(**arguments)
-        elif function_name == "get_mpa_compliance":
-            return await self._get_mpa_compliance(**arguments)
-        return {"error": f"Unknown function: {function_name}"}
+        """Execute tool in a worker thread (database access is blocking)"""
+        handlers = {
+            "query_vessel_intel": (self._query_vessel_intel, {"mmsi", "vessel_type", "timeframe", "limit"}),
+            "query_pollution_data": (self._query_pollution_data, {"indicator", "severity", "timeframe", "limit"}),
+            "get_mpa_compliance": (self._get_mpa_compliance, {"mpa_name", "metric_type"}),
+        }
+        if function_name not in handlers:
+            return {"error": f"Unknown function: {function_name}"}
 
-    async def _query_vessel_intel(self, mmsi=None, vessel_type=None, timeframe="current", limit=50):
+        handler, allowed = handlers[function_name]
+        # The model may invent argument names; passing them through would raise TypeError
+        kwargs = {k: v for k, v in arguments.items() if k in allowed}
+        try:
+            return await asyncio.to_thread(handler, **kwargs)
+        except Exception as e:
+            return {"error": str(e)}
+
+    @staticmethod
+    def _clamp_limit(limit: Any) -> int:
+        try:
+            return max(1, min(int(limit), 100))
+        except (ValueError, TypeError):
+            return 50
+
+    def _query_vessel_intel(self, mmsi=None, vessel_type=None, timeframe="current", limit=50):
         """Query vessels using SessionLocal for proper session management"""
         db = SessionLocal()
         try:
@@ -201,7 +215,10 @@ Capabilities:
                     pass
 
             if vessel_type:
-                query = query.where(VesselTrack.vessel_type == vessel_type)
+                try:
+                    query = query.where(VesselTrack.vessel_type == VesselType(str(vessel_type).upper()))
+                except ValueError:
+                    return {"error": f"Unknown vessel_type '{vessel_type}'"}
 
             # Add timeframe filter
             if timeframe == "current":
@@ -209,7 +226,7 @@ Capabilities:
             elif timeframe == "week":
                 query = query.where(VesselTrack.timestamp > datetime.utcnow() - timedelta(days=7))
 
-            query = query.limit(limit)
+            query = query.order_by(VesselTrack.timestamp.desc()).limit(self._clamp_limit(limit))
             vessels = db.exec(query).all()
 
             return {
@@ -226,14 +243,17 @@ Capabilities:
         finally:
             db.close()
 
-    async def _query_pollution_data(self, indicator="all", severity=None, timeframe="current", limit=50):
+    def _query_pollution_data(self, indicator="all", severity=None, timeframe="current", limit=50):
         """Query pollution using SessionLocal for proper session management"""
         db = SessionLocal()
         try:
             query = select(PollutionEvent)
 
-            if indicator != "all":
-                query = query.where(PollutionEvent.type == indicator)
+            if indicator and str(indicator).lower() != "all":
+                try:
+                    query = query.where(PollutionEvent.type == PollutionType(str(indicator).upper()))
+                except ValueError:
+                    return {"error": f"Unknown pollution indicator '{indicator}'"}
 
             if severity:
                 # severity is a float in the model, convert if needed
@@ -249,7 +269,7 @@ Capabilities:
             elif timeframe == "month":
                 query = query.where(PollutionEvent.detected_at > datetime.utcnow() - timedelta(days=30))
 
-            query = query.limit(limit)
+            query = query.order_by(PollutionEvent.detected_at.desc()).limit(self._clamp_limit(limit))
             events = db.exec(query).all()
 
             return {
@@ -265,7 +285,7 @@ Capabilities:
         finally:
             db.close()
 
-    async def _get_mpa_compliance(self, mpa_name=None, metric_type="all"):
+    def _get_mpa_compliance(self, mpa_name=None, metric_type="all"):
         """Get MPA data using SessionLocal for proper session management"""
         db = SessionLocal()
         try:

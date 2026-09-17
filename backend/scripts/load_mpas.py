@@ -3,7 +3,12 @@
 Script to load Marine Protected Areas from WDPA shapefile into PostGIS
 """
 
-import fiona
+import sys
+from pathlib import Path
+
+# Allow running as `python scripts/<name>.py` from backend/ (makes `app` importable)
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 from shapely.geometry import shape
 from geoalchemy2.shape import from_shape
 from app.database import SessionLocal
@@ -94,7 +99,8 @@ def load_sample_mpas():
 
 def load_from_shapefile(shapefile_path: str):
     """Load MPAs from WDPA shapefile (for production use)"""
-    
+    import fiona  # Only needed for shapefiles; keeps sample loading free of GDAL
+
     db = SessionLocal()
     inserted = 0
     

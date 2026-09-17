@@ -39,7 +39,7 @@ class AISBatch(BaseModel):
 
 
 @router.post("/ais")
-async def ingest_ais_data(
+def ingest_ais_data(
     batch: AISBatch = Body(...),
     db: Session = Depends(get_db)
 ):
@@ -102,19 +102,26 @@ async def ingest_ais_data(
     }
 
 @router.post("/satellite-image")
-async def ingest_satellite_image(
+def ingest_satellite_image(
     image_url: str = Body(..., embed=True),
     latitude: float = Body(0.0, embed=True),
     longitude: float = Body(0.0, embed=True),
     db: Session = Depends(get_db)
 ):
     """Process satellite image for pollution detection"""
-    
+
+    if not image_url.lower().startswith(("http://", "https://")):
+        raise HTTPException(status_code=400, detail="image_url must be an http(s) URL")
+    if not (-90 <= latitude <= 90 and -180 <= longitude <= 180):
+        raise HTTPException(status_code=400, detail="latitude/longitude out of range")
+
     detector = PollutionDetector()
-    
+    if detector.model is None:
+        raise HTTPException(status_code=503, detail="Pollution detection model is not loaded")
+
     try:
-        # Detect pollution
-        detections = await detector.detect(image_url)
+        # Sync handler runs in FastAPI's threadpool, so inference doesn't block the event loop
+        detections = detector.detect_sync(image_url)
         
         saved_count = 0
         for detection in detections:
@@ -144,11 +151,11 @@ async def ingest_satellite_image(
                 wkb_polygon = from_shape(polygon, srid=4326)
                 
                 # Map detection type to enum
-                pollution_type_str = detection.get("type", "OIL")
                 try:
-                    pollution_type = PollutionType(pollution_type_str)
+                    pollution_type = PollutionType(detection.get("type"))
                 except ValueError:
-                    pollution_type = PollutionType.OIL
+                    # Unknown classes must not be recorded as oil spills
+                    continue
                 
                 # Create and save PollutionEvent
                 pollution_event = PollutionEvent(

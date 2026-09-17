@@ -4,6 +4,12 @@ Script to ingest Sentinel satellite imagery from Copernicus
 This is a mock implementation for MVP
 """
 
+import sys
+from pathlib import Path
+
+# Allow running as `python scripts/<name>.py` from backend/ (makes `app` importable)
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 import asyncio
 import httpx
 from datetime import datetime
@@ -81,10 +87,15 @@ async def process_and_store_detection(image_data: dict):
 
             wkb_element = from_shape(polygon, srid=4326)
 
+            try:
+                pollution_type = PollutionType(detection['type'])
+            except ValueError:
+                continue  # Skip classes the model can't map to a pollution type
+
             # Create pollution event
             event = PollutionEvent(
                 id=uuid.uuid4(),
-                type=PollutionType(detection['type']),
+                type=pollution_type,
                 severity=detection['confidence'],
                 detected_at=datetime.utcnow(),
                 zone=wkb_element,

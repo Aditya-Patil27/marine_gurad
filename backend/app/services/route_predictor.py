@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import numpy as np
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Union
 from shapely.geometry import LineString, Point
 from app.config import settings
 import os
@@ -36,7 +36,7 @@ class RoutePredictor:
     Model Loading:
     - Supports local files, Supabase Storage, S3, and HTTP URLs
     - Uses the model registry for versioning and caching
-    - Falls back to untrained model if weights not available
+    - Falls back to linear extrapolation if weights are not available
     """
     
     _instance = None
@@ -52,6 +52,7 @@ class RoutePredictor:
             return
         
         self.model = None
+        self.weights_loaded = False
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self._load_model()
         self._initialized = True
@@ -63,7 +64,7 @@ class RoutePredictor:
         Attempts to load in this order:
         1. From model registry (supports remote storage)
         2. From local filesystem path
-        3. Untrained model as fallback
+        3. No weights: predictions use linear extrapolation
         """
         try:
             self.model = VesselLSTM()
@@ -96,10 +97,12 @@ class RoutePredictor:
                 print(f"Loading LSTM model from local path: {model_path}")
             
             if model_path:
-                self.model.load_state_dict(torch.load(model_path, map_location=self.device))
+                # weights_only avoids executing arbitrary pickled code from downloaded files
+                self.model.load_state_dict(torch.load(model_path, map_location=self.device, weights_only=True))
+                self.weights_loaded = True
                 print(f"Loaded route prediction model on {self.device}")
             else:
-                print("LSTM model weights not found, using untrained model")
+                print("LSTM model weights not found, using linear extrapolation")
             
             self.model.to(self.device)
             self.model.eval()
@@ -107,6 +110,7 @@ class RoutePredictor:
         except Exception as e:
             print(f"Error loading LSTM model: {e}")
             self.model = None
+            self.weights_loaded = False
     
     def reload_model(self, version: Optional[str] = None, force_download: bool = False):
         """
@@ -126,9 +130,10 @@ class RoutePredictor:
             
             if model_path:
                 self.model = VesselLSTM()
-                self.model.load_state_dict(torch.load(model_path, map_location=self.device))
+                self.model.load_state_dict(torch.load(model_path, map_location=self.device, weights_only=True))
                 self.model.to(self.device)
                 self.model.eval()
+                self.weights_loaded = True
                 print(f"Reloaded LSTM model v{version or 'latest'} on {self.device}")
             else:
                 print("Failed to reload model")
@@ -140,7 +145,7 @@ class RoutePredictor:
         self,
         positions: List[Tuple[float, float]],
         steps: int = 6
-    ) -> LineString:
+    ) -> Union[LineString, Point]:
         """
         Predict future vessel positions
         
@@ -149,9 +154,10 @@ class RoutePredictor:
             steps: Number of future steps to predict
             
         Returns:
-            LineString of predicted trajectory
+            LineString of predicted trajectory, or a Point when only one position is known
         """
-        if self.model is None or len(positions) < 3:
+        # An LSTM with random weights produces meaningless tracks, so only use it when trained
+        if self.model is None or not self.weights_loaded or len(positions) < 3:
             # Return simple linear extrapolation as fallback
             return self._linear_extrapolation(positions, steps)
         
@@ -178,7 +184,7 @@ class RoutePredictor:
                     predicted_positions.append(tuple(pred_denorm))
                     
                     # Update input for next prediction
-                    new_input = torch.FloatTensor((pred_np - mean) / std).unsqueeze(0).unsqueeze(0)
+                    new_input = torch.FloatTensor((pred_np - mean) / std).unsqueeze(0).unsqueeze(0).to(self.device)
                     x = torch.cat([x[:, 1:, :], new_input], dim=1)
             
             return LineString(predicted_positions)
@@ -191,10 +197,11 @@ class RoutePredictor:
         self,
         positions: List[Tuple[float, float]],
         steps: int
-    ) -> LineString:
+    ) -> Union[LineString, Point]:
         """Simple linear extrapolation fallback"""
         if len(positions) < 2:
-            return LineString(positions)
+            # A LineString needs two coordinates; with one fix we can't extrapolate
+            return Point(positions[0])
         
         # Calculate velocity from last two positions
         p1 = np.array(positions[-2])

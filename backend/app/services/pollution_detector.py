@@ -24,7 +24,7 @@ class PollutionDetector:
     Model Loading:
     - Supports local files, Supabase Storage, S3, and HTTP URLs
     - Uses the model registry for versioning and caching
-    - Falls back to pretrained YOLOv8n if custom model not available
+    - Detection is disabled (returns no results) if the custom model is not available
     """
     
     _instance = None
@@ -51,7 +51,7 @@ class PollutionDetector:
         Attempts to load in this order:
         1. From model registry (supports remote storage)
         2. From local filesystem path
-        3. Pretrained YOLOv8n as fallback
+        No fallback: generic COCO weights would map classes like "person" to OIL.
         """
         try:
             model_path = None
@@ -87,10 +87,10 @@ class PollutionDetector:
                 self.model.to(self.device)
                 print(f"Loaded pollution detection model on {self.device}")
             else:
-                # Use pretrained model as fallback
-                print("Custom model not found, using YOLOv8n pretrained")
-                self.model = YOLO('yolov8n.pt')
-                self.model.to(self.device)
+                print(
+                    f"Pollution model not found at {settings.YOLO_MODEL_PATH}; "
+                    "pollution detection is disabled until a trained model is provided"
+                )
                 
         except Exception as e:
             print(f"Error loading YOLO model: {e}")

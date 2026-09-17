@@ -45,6 +45,8 @@ def process_satellite_image(self, image_url: str, metadata: dict = None):
     import uuid
 
     detector = PollutionDetector()
+    if detector.model is None:
+        return {"status": "failed", "error": "Pollution detection model is not loaded"}
 
     # Use synchronous detection method for Celery compatibility
     # This avoids asyncio.run() which can cause issues with Celery's event loop
@@ -58,6 +60,11 @@ def process_satellite_image(self, image_url: str, metadata: dict = None):
     db = SessionLocal()
     try:
         for detection in detections:
+            try:
+                pollution_type = PollutionType(detection['type'])
+            except ValueError:
+                continue  # Skip classes the model can't map to a pollution type
+
             # Use geographic bounding box if available
             if "geo_bbox" in detection and metadata:
                 geo_bbox = detection["geo_bbox"]
@@ -89,7 +96,7 @@ def process_satellite_image(self, image_url: str, metadata: dict = None):
 
             event = PollutionEvent(
                 id=uuid.uuid4(),
-                type=PollutionType(detection['type']),
+                type=pollution_type,
                 severity=detection['confidence'],
                 detected_at=datetime.utcnow(),
                 zone=wkb_element,

@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     
     # Google Gemini
     GEMINI_API_KEY: str = ""
+    GEMINI_MODEL: str = "gemini-2.5-flash"
     
     # Frontend
     FRONTEND_URL: str = "http://localhost:5173"

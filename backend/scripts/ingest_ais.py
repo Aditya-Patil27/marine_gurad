@@ -3,10 +3,15 @@
 Script to ingest AIS vessel data from CSV files (Marine Cadastre format)
 """
 
+import sys
+from pathlib import Path
+
+# Allow running as `python scripts/<name>.py` from backend/ (makes `app` importable)
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 import pandas as pd
 import os
 from datetime import datetime
-from pathlib import Path
 from app.database import SessionLocal
 from app.models.vessel import VesselTrack, VesselType, get_vessel_type_from_code
 from geoalchemy2.shape import from_shape
