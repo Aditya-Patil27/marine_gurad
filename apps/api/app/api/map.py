@@ -315,3 +315,30 @@ def get_mpas_layer(bbox: Optional[BoundingBox], db: Session):
         return result.geojson
     
     return {"type": "FeatureCollection", "features": []}
+
+
+@router.get("/zones")
+def get_zones(db: Session = Depends(get_db)):
+    """Protected areas plus the buffer ring the risk engine treats as protected waters."""
+    from app.services.risk_engine import BUFFER_KM
+
+    rows = db.execute(
+        text("""
+            SELECT id, name, designation, country,
+                   ST_AsGeoJSON(boundary, 5)::json AS outline,
+                   ST_AsGeoJSON(ST_Buffer(boundary::geography, :m)::geometry, 5)::json AS buffer,
+                   ST_Y(ST_PointOnSurface(boundary)) AS label_lat,
+                   ST_X(ST_PointOnSurface(boundary)) AS label_lon
+            FROM marine_protected_areas
+            ORDER BY name
+        """),
+        {"m": BUFFER_KM * 1000},
+    )
+    features = []
+    for r in rows:
+        props = {"id": r.id, "name": r.name, "designation": r.designation, "country": r.country,
+                 "label": [r.label_lon, r.label_lat]}
+        features.append({"type": "Feature", "geometry": r.outline, "properties": {**props, "kind": "outline"}})
+        features.append({"type": "Feature", "geometry": r.buffer,
+                         "properties": {**props, "kind": "buffer", "buffer_km": BUFFER_KM}})
+    return {"type": "FeatureCollection", "features": features}

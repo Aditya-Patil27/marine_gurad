@@ -2,16 +2,45 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+@layer base {
+  html, body, #root { height: 100%; }
+  body {
+    @apply bg-canvas font-sans text-ink antialiased;
+    font-size: 14px;
+    line-height: 1.45;
+  }
+  h1, h2, h3 { @apply font-head text-navy; letter-spacing: -.005em; }
+  :focus-visible { outline: 2px solid #1F4CA3; outline-offset: 2px; }
 }
 
-.leaflet-container {
-  height: 100%;
-  width: 100%;
+@layer components {
+  .card { @apply rounded-card bg-white shadow-card; }
+  .btn {
+    @apply inline-flex h-[38px] items-center justify-center gap-2 rounded-btn border border-line bg-white px-4
+      text-sm font-medium text-navy no-underline transition-colors hover:bg-peri-soft;
+  }
+  .btn-primary { @apply border-navy bg-navy text-white hover:bg-navy-2; }
+  .chip {
+    @apply inline-flex h-8 items-center gap-[7px] whitespace-nowrap rounded-2xl border border-line bg-white px-3
+      text-[13px] font-medium text-muted transition-colors;
+  }
+  .chip-on { @apply border-peri bg-peri-soft text-navy; }
+  .pill { @apply inline-flex h-6 items-center gap-1.5 whitespace-nowrap rounded-xl px-[9px] text-xs font-medium; }
+  .pill-red { @apply bg-[#FCEBEB] text-[#A82E2E]; }
+  .pill-amber { @apply bg-[#FDF3E1] text-[#8A5606]; }
+  .pill-zone { @apply bg-[#F6E8F5] text-[#7F2378]; }
+  .pill-green { @apply bg-[#E4F5EE] text-[#146B48]; }
+  .pill-navy { @apply bg-peri-soft text-navy; }
+  .num { @apply font-mono; font-feature-settings: "tnum" 1; }
+  .maptag {
+    @apply whitespace-nowrap rounded-md bg-white px-[7px] py-0.5 font-mono text-[11.5px] font-medium text-ink;
+    box-shadow: 0 1px 3px rgba(8,51,127,.18);
+  }
+}
+
+.maplibregl-map { font-family: Jost, system-ui, sans-serif; }
+.maplibregl-ctrl-attrib { font-size: 10px; background: rgba(255,255,255,.75) !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 0s !important; animation-duration: 0s !important; }
 }

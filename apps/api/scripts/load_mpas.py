@@ -10,14 +10,16 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from shapely.geometry import shape
+from sqlmodel import select
 from geoalchemy2.shape import from_shape
 from app.database import SessionLocal
 from app.models.mpa import MarineProtectedArea
 
-def load_sample_mpas():
-    """Load sample MPA data (in production, would load from WDPA shapefile)"""
+def load_sample_mpas(db=None):
+    """Load or update sample MPA data (in production, would load from WDPA shapefile)"""
 
-    db = SessionLocal()
+    owns_session = db is None
+    db = db or SessionLocal()
 
     # Sample MPAs for Indian Ocean region (Gulf of Mannar and Gulf of Kutch)
     sample_mpas = [
@@ -26,8 +28,11 @@ def load_sample_mpas():
             "designation": "Marine National Park",
             "iucn_category": "II",
             "country": "India",
+            # Indicative outline offshore of the island chain; replace with WDPA before real use
             "coordinates": [
-                [(78.8, 8.7), (79.3, 8.7), (79.3, 9.3), (78.8, 9.3), (78.8, 8.7)]
+                [(79.29, 9.15), (79.08, 9.1), (78.86, 9.05), (78.61, 8.96), (78.41, 8.83), (78.26, 8.68),
+                 (78.3, 8.6), (78.46, 8.72), (78.68, 8.86), (78.92, 8.96), (79.12, 9.01), (79.32, 9.07),
+                 (79.29, 9.15)]
             ]
         },
         {
@@ -63,7 +68,7 @@ def load_sample_mpas():
             "iucn_category": "IV",
             "country": "Sri Lanka",
             "coordinates": [
-                [(79.7, 8.3), (79.9, 8.3), (79.9, 8.5), (79.7, 8.5), (79.7, 8.3)]
+                [(79.62, 8.3), (79.76, 8.3), (79.76, 8.5), (79.62, 8.5), (79.62, 8.3)]
             ]
         }
     ]
@@ -77,25 +82,25 @@ def load_sample_mpas():
             polygon = Polygon(mpa_data['coordinates'][0])
             wkb_element = from_shape(polygon, srid=4326)
 
-            mpa = MarineProtectedArea(
-                name=mpa_data['name'],
-                designation=mpa_data['designation'],
-                iucn_category=mpa_data['iucn_category'],
-                country=mpa_data['country'],
-                boundary=wkb_element
-            )
-
-            db.add(mpa)
-            inserted += 1
+            mpa = db.exec(select(MarineProtectedArea).where(MarineProtectedArea.name == mpa_data['name'])).first()
+            if mpa is None:
+                mpa = MarineProtectedArea(name=mpa_data['name'])
+                db.add(mpa)
+                inserted += 1
+            mpa.designation = mpa_data['designation']
+            mpa.iucn_category = mpa_data['iucn_category']
+            mpa.country = mpa_data['country']
+            mpa.boundary = wkb_element
 
         db.commit()
-        print(f"Loaded {inserted} Marine Protected Areas in Indian Ocean region")
+        print(f"Loaded {len(sample_mpas)} Marine Protected Areas ({inserted} new, the rest updated)")
 
     except Exception as e:
         print(f"Error loading MPAs: {e}")
         db.rollback()
     finally:
-        db.close()
+        if owns_session:
+            db.close()
 
 def load_from_shapefile(shapefile_path: str):
     """Load MPAs from WDPA shapefile (for production use)"""

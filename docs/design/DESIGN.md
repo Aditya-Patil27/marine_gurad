@@ -1,8 +1,8 @@
 # SamudraSense design
 
-Status: **v2 for review** (17 Sep 2026). v1 was a dark theme and was rejected.
+Status: **v2 signed off** (17 Sep 2026). v1 was a dark theme and was rejected. Screen 01 (map) is built in `apps/web`; the others are next.
 
-The screens in `screens/` are static HTML mockups with sample data. Nothing is wired to the backend yet.
+The screens in `screens/` are static HTML mockups with sample data.
 
 ## 1. Direction
 

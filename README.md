@@ -6,7 +6,9 @@ SamudraSense predicts which waters are at risk, catches vessels that hide from t
 
 Built by **Team Code4Seas** (Adish Nair, Aditya Patil, Aditya Saraf) for **Indradhanu IGC 2026**, track *AI for Climate Change: Ocean & Marine Protection*. It grows out of our earlier platform, BlueGuard.
 
-> **Status (Sep 2026):** the BlueGuard v1 backend and dashboard in this repo work end to end. The screens for SamudraSense are designed and signed off in [docs/design](docs/design/DESIGN.md). The features listed under [The idea](#the-idea) are what we are building for the prototype (10 Nov 2026) and the finale (20–21 Jan 2027). They are not in the code yet.
+> **Status (Sep 2026):** the map console and the explainable risk engine are built: every vessel gets an additive score with its reasons, receiver-outage check and what would clear it. The other screens are designed and signed off in [docs/design](docs/design/DESIGN.md) but not built yet. Radar fusion, hotspots, weather triage, reports and the spill simulator are what we are building for the prototype (10 Nov 2026) and the finale (20–21 Jan 2027).
+
+![Map console with Sea Pearl II selected](docs/screenshots/map-vessel.png)
 
 ---
 
@@ -93,19 +95,19 @@ We start with India's coasts, including the Gulf of Mannar and Gulf of Kutch pro
 
 | Layer | Technology |
 |---|---|
-| Frontend (`apps/web`) | React 18, Vite 7, Tailwind CSS 3, Leaflet + React-Leaflet, Recharts, Radix UI, Lucide, Axios |
+| Frontend (`apps/web`) | React 18, Vite 7, React Router 7, MapLibre GL JS, Tailwind CSS 3, Lucide, Fontsource (bundled fonts) |
 | API (`apps/api`) | Python 3.11, FastAPI, SQLModel, Pydantic 2, Alembic, Uvicorn |
 | Data | PostgreSQL 15 + PostGIS 3.3, GeoAlchemy2, Shapely, Fiona, PyProj |
 | Jobs | Celery on Redis 7 |
-| AI / ML | PyTorch 2.2 (LSTM route model), Ultralytics YOLOv8 (detector, no trained weights yet), Google Gemini via `google-genai` for the chat assistant |
+| AI / ML | Explainable rule-based risk engine (`app/services/risk_engine.py`), PyTorch 2.2 (LSTM route model), Ultralytics YOLOv8 (detector, no trained weights yet), Google Gemini via `google-genai` for the chat API |
 | Infra | Docker Compose; Supabase Postgres as an optional hosted database |
 
 ### Planned for SamudraSense
 
 | Layer | Technology | Replaces |
 |---|---|---|
-| Maps | MapLibre GL JS with offline PMTiles, deck.gl data layers | Leaflet with online tiles |
-| UI | Radix Primitives with our design tokens, Observable Plot / visx, Cytoscape.js for the encounter graph | Current dashboard components |
+| Maps | Offline PMTiles basemap, deck.gl data layers | Esri online ocean tiles |
+| UI | Radix Primitives with our design tokens, Observable Plot / visx, Cytoscape.js for the encounter graph | — |
 | Orchestration | Node.js + BullMQ on Redis (`services/orchestrator`) | Celery for the scan pipeline |
 | Edge filter | C++17 spatial grid index and geofencing that drops routine AIS early (`services/edge-filter`) | — |
 | AI / ML | YOLOv8s on Sentinel-1 SAR, Prophet + scikit-learn hotspot ranker, evasion state machine, EigenCAM, SHAP | Pollution-only detector |
@@ -143,8 +145,14 @@ cp apps/api/.env.example apps/api/.env   # set GEMINI_API_KEY for the chat assis
 docker compose -f infra/docker-compose.yml up --build
 ```
 
-- Dashboard: http://127.0.0.1:5173
+- Console: http://127.0.0.1:5173
 - API docs: http://127.0.0.1:8000/docs
+
+To see the Gulf of Mannar demo story (a trawler that meets a carrier and switches AIS off), load it once. Timestamps are relative to now, so re-run it whenever the demo looks stale:
+
+```bash
+docker exec -w /app samudrasense_backend python scripts/seed_demo.py
+```
 
 Compose starts PostGIS, Redis, the API, a Celery worker and the frontend, and runs the database migrations on start. To use Supabase instead of the local database, set `DATABASE_URL` in `infra/.env`.
 
@@ -174,11 +182,18 @@ npm run dev                          # proxies /api to http://127.0.0.1:8000
 
 ```bash
 cd apps/api
+python scripts/seed_demo.py                    # invented Gulf of Mannar story, relative to now
 python scripts/ingest_ais.py path/to/AIS.csv   # MarineCadastre-style CSV: MMSI, LAT, LON, BaseDateTime, SOG, COG, ...
 python scripts/ingest_sentinel.py              # satellite pollution detections (needs trained weights)
 ```
 
 Trained model weights are not committed. The API looks for them in `apps/api/models/` (`pollution_yolo.pt`, `route_lstm.pt`). Without them, route prediction falls back to linear extrapolation and satellite detection returns 503.
+
+### Tests
+
+```bash
+docker exec -w /app samudrasense_backend sh -c "pip install -r requirements-dev.txt && python -m pytest tests"
+```
 
 ---
 
@@ -188,11 +203,14 @@ All routes are under `/api/v1`. Full reference at `/docs` when the API is runnin
 
 | Method | Route | Purpose |
 |---|---|---|
+| GET | `/vessels/?hours=24` | Every vessel seen in the window with its risk score, state and headline |
+| GET | `/vessels/{mmsi}` | One vessel: track, score breakdown, checks, what would clear it, gaps, encounters |
+| GET | `/map/zones` | Protected areas and the 10 km buffer the risk engine uses |
 | GET | `/map/layers?layer_type=vessels\|pollution\|mpas&bbox=minLon,minLat,maxLon,maxLat` | GeoJSON map layers |
 | GET | `/alerts/?severity=HIGH&limit=20` | Alerts sorted by severity and risk score |
 | GET | `/analytics/statistics` | Headline counts for the dashboard |
 | GET | `/analytics/ohi?days=180` | Ocean Health Index time series |
-| POST | `/ingest/ais` | Ingest AIS positions |
+| POST | `/ingest/ais` | Ingest AIS positions and rescore the fleet |
 | POST | `/ingest/satellite-image` | Run detection on a satellite image URL |
 | POST | `/chat/message` | Ask the assistant (Gemini with database tools) |
 
