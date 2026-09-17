@@ -8,6 +8,16 @@ Built by **Team Code4Seas** (Adish Nair, Aditya Patil, Aditya Saraf) for **Indra
 
 > **Status (Sep 2026):** the map console and the explainable risk engine are built: every vessel gets an additive score with its reasons, receiver-outage check and what would clear it. The other screens are designed and signed off in [docs/design](docs/design/DESIGN.md) but not built yet. Radar fusion, hotspots, weather triage, reports and the spill simulator are what we are building for the prototype (10 Nov 2026) and the finale (20–21 Jan 2027).
 
+## Demo video
+
+[![Watch the SamudraSense walkthrough (96 s)](docs/demo/walkthrough-poster.jpg)](https://cdn.jsdelivr.net/gh/Aditya-Patil27/marine_gurad@ap/docs/demo/samudrasense-walkthrough.mp4)
+
+**[▶ Watch the 96-second walkthrough](https://cdn.jsdelivr.net/gh/Aditya-Patil27/marine_gurad@ap/docs/demo/samudrasense-walkthrough.mp4)** (opens in the browser; [download from the repo](docs/demo/samudrasense-walkthrough.mp4))
+
+The video follows one case through the whole console: Sea Pearl II goes dark in the Gulf of Mannar park buffer and a radar pass finds its hull next to a carrier. Alerts are sorted with weather-explained ones kept aside, the evidence page shows how each step added to the score, the incident report links every figure to its source before an officer signs, and the spill simulator shows where oil would drift. It walks through the signed-off screen designs with sample data.
+
+### Built so far
+
 ![Map console with Sea Pearl II selected](docs/screenshots/map-vessel.png)
 
 ---
