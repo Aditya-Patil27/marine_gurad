@@ -30,13 +30,23 @@ export default function TrackTimeline({ detail }) {
   const enc = detail.encounters.find((e) => visible(e.start, e.end))
   const longest = gaps.reduce((a, g) => (!a || g.hours > a.hours ? g : a), null)
   const ticks = Array.from({ length: 5 }, (_, i) => start + (i * WINDOW_H * 3600e3) / 4)
+  const silent = longest && longest.hours >= 1 ? longest : null
+
+  // The picture is one image to a screen reader, so the label has to carry what it shows
+  const spoken = [`Last ${WINDOW_H} hours of AIS for ${vesselName(detail)}`]
+  if (silent) {
+    const when = silent.open ? `since ${timeIST(silent.start)}` : `from ${timeIST(silent.start)} to ${timeIST(silent.end)}`
+    spoken.push(`AIS silent ${hoursLabel(silent.hours)} ${when}`)
+  }
+  if (enc) spoken.push(`Met ${vesselName(enc)} from ${timeIST(enc.start)} to ${timeIST(enc.end)}`)
 
   return (
     <div
       ref={ref}
-      className="card absolute bottom-5 left-[380px] right-[440px] z-10 h-[78px] px-[18px] py-2.5"
+      // Below the design width the card would be a sliver between the two side cards, so it runs under the list
+      className="card absolute bottom-5 left-5 right-[440px] z-10 h-[78px] px-[18px] py-2.5 xl:left-[380px]"
       role="img"
-      aria-label={`Last ${WINDOW_H} hours of AIS for ${vesselName(detail)}`}
+      aria-label={`${spoken.join('. ')}.`}
     >
       <svg width="100%" height="58" className="overflow-visible">
         {/* Everything we have positions for, then gaps drawn on top */}
@@ -44,9 +54,9 @@ export default function TrackTimeline({ detail }) {
         {gaps.map((g) => (
           <rect key={g.start} x={x(g.start)} y={20} width={Math.max(2, x(g.end) - x(g.start))} height={8} rx={4} fill="#FCEBEB" stroke="#D64545" strokeDasharray="3 3" />
         ))}
-        {longest && longest.hours >= 1 && (
-          <text x={x(longest.start) + 2} y={13} fill="#A82E2E" fontSize="12" fontFamily="Jost">
-            AIS silent {hoursLabel(longest.hours)}
+        {silent && (
+          <text x={x(silent.start) + 2} y={13} fill="#A82E2E" fontSize="12" fontFamily="Jost">
+            AIS silent {hoursLabel(silent.hours)}
           </text>
         )}
         {enc && (

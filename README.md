@@ -202,8 +202,16 @@ Trained model weights are not committed. The API looks for them in `apps/api/mod
 ### Tests
 
 ```bash
+# API
 docker exec -w /app samudrasense_backend sh -c "pip install -r requirements-dev.txt && python -m pytest tests"
+
+# Web (Vitest and Testing Library; needs no API or browser)
+cd apps/web
+npm ci
+npm run build && npm test
 ```
+
+The web tests cover the console's states and flows in jsdom. The map itself needs WebGL, so what it draws is checked in a browser.
 
 ---
 

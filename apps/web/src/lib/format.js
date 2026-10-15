@@ -54,6 +54,9 @@ export const LEVEL = {
   low: { label: 'Normal', color: 'text-muted', pill: 'pill-navy' },
 }
 
+/** A level this build doesn't know still renders: neutral colours and the API's own word for it. */
+export const levelStyle = (level) => LEVEL[level] ?? { label: level || 'Not scored', color: 'text-muted', pill: 'pill-navy' }
+
 /** How each behaviour would stop counting, for "What would clear it". */
 export const CLEARS = {
   ais_gap: 'AIS comes back on',

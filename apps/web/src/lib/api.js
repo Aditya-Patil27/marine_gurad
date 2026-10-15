@@ -18,4 +18,7 @@ export const mapApi = {
   zones: () => api.get('/map/zones').then((r) => r.data),
 }
 
+/** The API answered and has no such record, as opposed to not answering at all. */
+export const isNotFound = (error) => error?.response?.status === 404
+
 export default api

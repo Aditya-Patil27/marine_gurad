@@ -167,11 +167,12 @@ export default function OceanMap({ vessels, zones, detail, showZones, showAll, o
         },
       })
 
-      for (const id of ['vessel-arrow', 'vessel-ring']) {
-        m.on('click', id, (e) => onSelectRef.current(e.features[0].properties.mmsi))
-        m.on('mouseenter', id, () => (m.getCanvas().style.cursor = 'pointer'))
-        m.on('mouseleave', id, () => (m.getCanvas().style.cursor = ''))
-      }
+      // One listener for both layers: a flagged vessel has a ring and an arrow under the pointer,
+      // and a listener per layer selected it twice
+      const hit = ['vessel-arrow', 'vessel-ring']
+      m.on('click', hit, (e) => onSelectRef.current(e.features[0].properties.mmsi))
+      m.on('mouseenter', hit, () => (m.getCanvas().style.cursor = 'pointer'))
+      m.on('mouseleave', hit, () => (m.getCanvas().style.cursor = ''))
       setReady(true)
     })
     return () => m.remove()

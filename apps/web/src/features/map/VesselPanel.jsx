@@ -1,12 +1,15 @@
 import { Link } from 'react-router-dom'
-import { CircleAlert, CircleCheck, CircleMinus, X } from 'lucide-react'
-import { CLEARS, LEVEL, score, timeIST, vesselName, vesselType, withDisplayNames } from '../../lib/format'
+import { CircleAlert, CircleCheck, CircleHelp, CircleMinus, X } from 'lucide-react'
+import { isNotFound } from '../../lib/api'
+import { CLEARS, levelStyle, score, timeIST, vesselName, vesselType, withDisplayNames } from '../../lib/format'
 
 const CHECK_ICON = {
   ruled_out: { Icon: CircleCheck, className: 'text-risk-green', label: 'Ruled out' },
   not_ruled_out: { Icon: CircleAlert, className: 'text-risk-amber', label: 'Not ruled out' },
   not_checked: { Icon: CircleMinus, className: 'text-faint', label: 'Not checked' },
 }
+// A status this build doesn't know: show the check with its own text rather than guess what it means
+const UNKNOWN_CHECK = { Icon: CircleHelp, className: 'text-faint', label: 'Unknown result' }
 
 function Factor({ factor, scale, names }) {
   return (
@@ -36,24 +39,31 @@ function ClearIf({ clearIf }) {
   )
 }
 
-export default function VesselPanel({ detail, error, onClose, names }) {
-  if (error) {
+export default function VesselPanel({ detail, mmsi, error, loading, onClose, onRetry, names }) {
+  if (!detail && error && !loading) {
+    // Only a 404 means the vessel is missing; anything else is the connection, and worth another try
+    const missing = isNotFound(error)
     return (
-      <aside className="card absolute right-5 top-[76px] z-10 w-[400px] p-5">
-        <p className="text-muted">Couldn't load this vessel. It may not have reported in the last 24 h.</p>
-        <button type="button" className="btn mt-4" onClick={onClose}>Close</button>
+      <aside className="card absolute right-5 top-[76px] z-10 w-[400px] p-5" aria-label="Vessel details">
+        <p role="alert" className="text-muted">
+          {missing ? `No positions for MMSI ${mmsi} in the last 24 h.` : "Can't reach the API, so this vessel's details didn't load."}
+        </p>
+        <div className="mt-4 flex gap-2.5">
+          {!missing && <button type="button" className="btn btn-primary" onClick={onRetry}>Try again</button>}
+          <button type="button" className="btn" onClick={onClose}>Close</button>
+        </div>
       </aside>
     )
   }
   if (!detail) {
     return (
-      <aside className="card absolute right-5 top-[76px] z-10 w-[400px] p-5 text-muted" aria-busy="true">
+      <aside className="card absolute right-5 top-[76px] z-10 w-[400px] p-5 text-muted" aria-label="Vessel details" aria-busy="true">
         Loading vessel…
       </aside>
     )
   }
 
-  const level = LEVEL[detail.level]
+  const level = levelStyle(detail.level)
   const scale = Math.max(...Object.values(detail.max_points))
   const meta = [vesselType(detail.vessel_type), detail.length && `${detail.length} m`].filter(Boolean).join(' · ')
 
@@ -107,7 +117,7 @@ export default function VesselPanel({ detail, error, onClose, names }) {
             <h3 className="mb-1.5 text-sm">Checks</h3>
             <ul>
               {detail.checks.map((c) => {
-                const { Icon, className, label } = CHECK_ICON[c.status]
+                const { Icon, className, label } = CHECK_ICON[c.status] ?? UNKNOWN_CHECK
                 return (
                   <li key={c.key} className="flex gap-2 py-[3px] text-[13.5px] text-muted">
                     <Icon size={16} className={`mt-0.5 flex-none ${className}`} aria-label={label} />
