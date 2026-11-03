@@ -38,3 +38,6 @@ Thumbs.db
 
 # Vite dependency cache
 .vite/
+
+# Local Firecrawl research cache
+.firecrawl/

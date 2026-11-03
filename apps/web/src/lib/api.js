@@ -21,4 +21,18 @@ export const mapApi = {
 /** The API answered and has no such record, as opposed to not answering at all. */
 export const isNotFound = (error) => error?.response?.status === 404
 
+export const reportsApi = {
+  list: () => api.get('/reports/').then((r) => r.data),
+  create: (mmsi) => api.post('/reports/', { mmsi }).then((r) => r.data),
+  sign: (id, officer, reviewed) => api.post(`/reports/${id}/sign`, { officer, reviewed }).then((r) => r.data),
+}
+
+export const weatherApi = {
+  vessel: (mmsi) => api.get(`/weather/${mmsi}`).then((r) => r.data),
+}
+
+export const sarApi = {
+  detections: () => api.get('/sar/detections').then((r) => r.data),
+}
+
 export default api

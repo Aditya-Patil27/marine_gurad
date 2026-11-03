@@ -136,7 +136,7 @@ export default function VesselPanel({ detail, mmsi, error, loading, onClose, onR
 
       <div className="flex gap-2.5 border-t border-line px-5 pb-[18px] pt-3.5">
         <Link to={`/vessels/${detail.mmsi}`} className="btn btn-primary flex-1">Open evidence</Link>
-        <Link to="/reports" className="btn">Draft report</Link>
+        <Link to={`/vessels/${detail.mmsi}`} className="btn">Draft report</Link>
       </div>
     </aside>
   )

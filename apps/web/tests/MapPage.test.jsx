@@ -3,7 +3,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '@/App'
-import { mapApi, vesselsApi } from '@/lib/api'
+import { mapApi, sarApi, vesselsApi, weatherApi } from '@/lib/api'
 import { fleet, httpError, networkError, seaPearlDetail } from './fixtures'
 
 // MapLibre needs WebGL, which jsdom doesn't have; the map itself is checked in a browser
@@ -12,6 +12,8 @@ vi.mock('@/lib/api', async (original) => ({
   ...(await original()),
   vesselsApi: { list: vi.fn(), get: vi.fn() },
   mapApi: { zones: vi.fn() },
+  weatherApi: { vessel: vi.fn() },
+  sarApi: { detections: vi.fn() },
 }))
 
 const ZONES = { type: 'FeatureCollection', features: [] }
@@ -48,6 +50,8 @@ beforeEach(() => {
   vesselsApi.list.mockReset().mockResolvedValue(fleet)
   vesselsApi.get.mockReset().mockResolvedValue(seaPearlDetail)
   mapApi.zones.mockReset().mockResolvedValue(ZONES)
+  weatherApi.vessel.mockReset().mockResolvedValue({ status: 'unavailable', reason: 'Weather service unavailable.' })
+  sarApi.detections.mockReset().mockResolvedValue([])
 })
 
 afterEach(() => vi.useRealTimers())
@@ -225,7 +229,7 @@ describe('map page', () => {
   it('comes back from the evidence screen to the same vessel', async () => {
     const visits = await open('/vessels/419007431')
 
-    fireEvent.click(screen.getByRole('link', { name: 'Back to the map' }))
+    fireEvent.click(screen.getByRole('link', { name: 'View track on map' }))
     await settle()
 
     expect(visits.at(-1)).toBe('/map?vessel=419007431')

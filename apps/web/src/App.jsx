@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import Shell from './components/Shell'
 import MapPage from './pages/MapPage'
 import NotBuiltYet from './pages/NotBuiltYet'
+import { AlertsPage, EvidencePage, ReportsPage } from './pages/Cases'
 
 export default function App() {
   return (
@@ -11,15 +12,15 @@ export default function App() {
         <Route path="map" element={<MapPage />} />
         <Route
           path="alerts"
-          element={<NotBuiltYet title="Alert triage" what="Sort alerts into New, Explained by weather, In review, Awaiting sign-off and Sent." />}
+          element={<AlertsPage />}
         />
         <Route
           path="vessels/:mmsi?"
-          element={<NotBuiltYet title="Vessel evidence" what="The full case for one vessel: track, radar crop, speed profile and who it met." />}
+          element={<EvidencePage />}
         />
         <Route
           path="reports"
-          element={<NotBuiltYet title="Incident reports" what="Draft reports where every figure links to its source, ready for an officer to sign." />}
+          element={<ReportsPage />}
         />
         <Route
           path="spills"
