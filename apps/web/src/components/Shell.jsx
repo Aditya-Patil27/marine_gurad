@@ -1,8 +1,9 @@
-import { Component } from 'react'
+import { Component, useSyncExternalStore } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { Bell, Droplet, FileText, Map, Settings, Ship } from 'lucide-react'
 import { vesselsApi } from '../lib/api'
 import usePolling from '../lib/usePolling'
+import { sourceLabel, timeIST } from '../lib/format'
 import Logo from './Logo'
 
 const NAV = [
@@ -60,6 +61,54 @@ class PageBoundary extends Component {
   }
 }
 
+function subscribeOnline(callback) {
+  window.addEventListener('online', callback)
+  window.addEventListener('offline', callback)
+  return () => {
+    window.removeEventListener('online', callback)
+    window.removeEventListener('offline', callback)
+  }
+}
+
+const getOnlineSnapshot = () => navigator.onLine
+
+function DataModeBanner({ fleet }) {
+  const isOnline = useSyncExternalStore(subscribeOnline, getOnlineSnapshot)
+  const isOffline = !isOnline
+
+  let text
+  let warning = false
+
+  if (isOffline) {
+    warning = true
+    text = fleet.data
+      ? `Offline · last sync ${timeIST(fleet.updatedAt)} IST · Live AIS and new satellite data need a connection.`
+      : 'Offline · nothing synced yet · Live AIS and new satellite data need a connection.'
+  } else if (fleet.error) {
+    warning = true
+    text = fleet.data
+      ? `Can't reach the API · last sync ${timeIST(fleet.updatedAt)} IST · Showing the last data received, not live.`
+      : "Can't reach the API · no data loaded yet"
+  } else if (!fleet.data) {
+    warning = false
+    text = 'Checking the data source…'
+  } else {
+    warning = false
+    text = `Data mode: ${sourceLabel(fleet.data)}`
+  }
+
+  return (
+    <div
+      role="region"
+      aria-label="Data mode"
+      aria-live="polite"
+      className={`border-b border-line px-4 py-1.5 text-[13px] ${warning ? 'pill-amber' : 'bg-white text-muted'}`}
+    >
+      {text}
+    </div>
+  )
+}
+
 export default function Shell() {
   // The fleet is shared by the rail badge and every page, refreshed every 30 s
   const fleet = usePolling(() => vesselsApi.list(24), 30000)
@@ -77,12 +126,15 @@ export default function Shell() {
           <RailLink to="/settings" label="Settings" icon={Settings} />
         </div>
       </nav>
-      <main className="relative min-w-0">
+      <div className="flex min-h-0 min-w-0 flex-col">
+        <DataModeBanner fleet={fleet} />
+        <main className="relative min-h-0 min-w-0 flex-1">
         {/* Keyed by page, so opening another one leaves the failure behind */}
         <PageBoundary key={pathname}>
           <Outlet context={fleet} />
         </PageBoundary>
-      </main>
+        </main>
+      </div>
     </div>
   )
 }

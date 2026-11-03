@@ -245,4 +245,63 @@ describe('map page', () => {
 
     expect(screen.getByRole('button', { name: 'Protected areas' }).getAttribute('aria-pressed')).toBe('true')
   })
+
+  describe('data mode banner and status dot', () => {
+    const dot = () => screen.getByRole('status').querySelector('[aria-hidden="true"]')
+    const banner = () => screen.getByRole('region', { name: 'Data mode' })
+
+    it('shows api error on banner when refresh fails after live load', async () => {
+      vesselsApi.list.mockResolvedValue({ ...fleet, data_mode: 'live' })
+      await open('/map')
+      vesselsApi.list.mockRejectedValue(networkError())
+
+      await settle(30000)
+
+      const text = banner().textContent
+      expect(text).toMatch(/^Can't reach the API · last sync 18:33 IST/)
+      expect(text).not.toContain('Live data')
+    })
+
+    it('restores live banner when api answers again', async () => {
+      vesselsApi.list.mockResolvedValue({ ...fleet, data_mode: 'live' })
+      await open('/map')
+      vesselsApi.list.mockRejectedValue(networkError())
+
+      await settle(30000)
+      expect(banner().textContent).not.toContain('Live data')
+
+      vesselsApi.list.mockResolvedValue({ ...fleet, data_mode: 'live' })
+      await settle(30000)
+      expect(banner().textContent).toBe('Data mode: Live data')
+    })
+
+    it('renders faint dot when fleet has no data_mode', async () => {
+      await open('/map')
+
+      expect(dot().className).toContain('bg-faint')
+      expect(dot().className).not.toContain('bg-risk-green')
+    })
+
+    it('renders green dot when fleet has data_mode live', async () => {
+      vesselsApi.list.mockResolvedValue({ ...fleet, data_mode: 'live' })
+      await open('/map')
+
+      expect(dot().className).toContain('bg-risk-green')
+    })
+
+    it('renders red dot when fleet request rejects', async () => {
+      vesselsApi.list.mockRejectedValue(networkError())
+      await open('/map')
+
+      expect(dot().className).toContain('bg-risk-red')
+    })
+
+    it('renders faint dot while connecting', async () => {
+      vesselsApi.list.mockReturnValue(new Promise(() => {}))
+      await open('/map')
+
+      expect(dot().className).toContain('bg-faint')
+      expect(dot().className).not.toContain('bg-risk-green')
+    })
+  })
 })

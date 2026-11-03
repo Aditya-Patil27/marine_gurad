@@ -75,4 +75,86 @@ describe('shell', () => {
 
     expect(screen.getByText('Alerts page')).toBeTruthy()
   })
+
+  describe('data mode banner', () => {
+    const banner = () => screen.getByRole('region', { name: 'Data mode' })
+
+    it('shows source not reported when fleet has no data_mode', async () => {
+      await open('/alerts')
+
+      expect(banner().textContent).toBe('Data mode: Source not reported')
+    })
+
+    it('shows live data when fleet has data_mode live', async () => {
+      vesselsApi.list.mockResolvedValue({ ...fleet, data_mode: 'live' })
+      await open('/alerts')
+
+      expect(banner().textContent).toBe('Data mode: Live data')
+    })
+
+    it('shows synthetic data when fleet has data_mode synthetic', async () => {
+      vesselsApi.list.mockResolvedValue({ ...fleet, data_mode: 'synthetic' })
+      await open('/alerts')
+
+      expect(banner().textContent).toBe('Data mode: Synthetic data')
+    })
+
+    it('shows offline warning when offline even if fleet is live', async () => {
+      vi.spyOn(window.navigator, 'onLine', 'get').mockReturnValue(false)
+      vesselsApi.list.mockResolvedValue({ ...fleet, data_mode: 'live' })
+      await open('/alerts')
+
+      const text = banner().textContent
+      expect(text).toMatch(/^Offline · last sync/)
+      expect(text).toContain('need a connection')
+      expect(text).not.toContain('Live data')
+    })
+
+    it('shows nothing synced yet when offline and fleet never answered', async () => {
+      vi.spyOn(window.navigator, 'onLine', 'get').mockReturnValue(false)
+      vesselsApi.list.mockReturnValue(new Promise(() => {}))
+      await open('/alerts')
+
+      expect(banner().textContent).toMatch(/^Offline · nothing synced yet/)
+    })
+
+    it('shows no data loaded yet when fleet rejects with no data', async () => {
+      vesselsApi.list.mockRejectedValue(new Error('Network error'))
+      await open('/alerts')
+
+      expect(banner().textContent).toBe("Can't reach the API · no data loaded yet")
+    })
+
+    it('shows checking data source when fleet never answered and online', async () => {
+      vesselsApi.list.mockReturnValue(new Promise(() => {}))
+      await open('/alerts')
+
+      expect(banner().textContent).toBe('Checking the data source…')
+    })
+
+    it('reacts to online and offline events', async () => {
+      const spy = vi.spyOn(window.navigator, 'onLine', 'get').mockReturnValue(true)
+      await open('/alerts')
+      expect(banner().textContent).toContain('Data mode:')
+
+      spy.mockReturnValue(false)
+      act(() => {
+        window.dispatchEvent(new Event('offline'))
+      })
+      expect(banner().textContent).toContain('Offline ·')
+
+      spy.mockReturnValue(true)
+      act(() => {
+        window.dispatchEvent(new Event('online'))
+      })
+      expect(banner().textContent).toContain('Data mode:')
+    })
+
+    it('keeps the banner when a page fails to draw', async () => {
+      await open('/map')
+
+      expect(banner()).toBeTruthy()
+      expect(screen.getByRole('alert').textContent).toContain('This screen stopped working')
+    })
+  })
 })
