@@ -39,7 +39,7 @@ services:
       dockerfile: Dockerfile
     container_name: samudrasense_backend
     # Apply database migrations before starting the API
-    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    command: sh -c "alembic upgrade head && if [ \"$$SEED_DEMO_IF_EMPTY\" = \"true\" ]; then python scripts/seed_demo.py --if-empty; fi && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
     ports:
       - "8000:8000"
     # API keys (GEMINI_API_KEY etc.) come from apps/api/.env; values under `environment` win
@@ -50,6 +50,7 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgresql://samudra:samudra_secret@postgres:5432/samudrasense_db}
       REDIS_URL: redis://redis:6379/0
       PYTHONUNBUFFERED: 1
+      SEED_DEMO_IF_EMPTY: ${SEED_DEMO_IF_EMPTY:-false}
     volumes:
       - ../apps/api:/app
       - model_weights:/app/models

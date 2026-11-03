@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
-from app.api import map, analytics, ingest, alerts, chat, vessels
+from app.api import map, analytics, ingest, alerts, chat, vessels, reports, weather, sar
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -26,6 +26,9 @@ app.include_router(ingest.router, prefix=f"{settings.API_V1_PREFIX}/ingest", tag
 app.include_router(alerts.router, prefix=f"{settings.API_V1_PREFIX}/alerts", tags=["Alerts"])
 app.include_router(chat.router, prefix=f"{settings.API_V1_PREFIX}/chat", tags=["Chat"])
 app.include_router(vessels.router, prefix=f"{settings.API_V1_PREFIX}/vessels", tags=["Vessels"])
+app.include_router(reports.router, prefix=f"{settings.API_V1_PREFIX}/reports", tags=["Reports"])
+app.include_router(weather.router, prefix=f"{settings.API_V1_PREFIX}/weather", tags=["Weather"])
+app.include_router(sar.router, prefix=f"{settings.API_V1_PREFIX}/sar", tags=["SAR"])
 
 @app.get("/")
 async def root():

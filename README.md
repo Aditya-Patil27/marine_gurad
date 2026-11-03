@@ -6,7 +6,11 @@ SamudraSense predicts which waters are at risk, catches vessels that hide from t
 
 Built by **Team Code4Seas** (Adish Nair, Aditya Patil, Aditya Saraf) for **Indradhanu IGC 2026**, track *AI for Climate Change: Ocean & Marine Protection*. It grows out of our earlier platform, BlueGuard.
 
-> **Status (Sep 2026):** the map console and the explainable risk engine are built: every vessel gets an additive score with its reasons, receiver-outage check and what would clear it. The other screens are designed and signed off in [docs/design](docs/design/DESIGN.md) but not built yet. Radar fusion, hotspots, weather triage, reports and the spill simulator are what we are building for the prototype (10 Nov 2026) and the finale (20–21 Jan 2027).
+> **Prototype status (Nov 2026):** the map, explainable AIS risk engine, basic alert and evidence screens, and locally stored report snapshots are implemented. Open-Meteo weather context is available for AIS gaps. External georeferenced SAR detections can be entered and compared with nearby AIS, but no trained SAR detector is integrated or validated yet. Weather does not automatically change alert scores. Climate hotspots, a local LLM, authenticated sign-off, dispatch, and the spill simulator remain planned. See [the low-cost data research](docs/LOW_COST_DATA.md).
+
+## Delivery plan
+
+See the [final product delivery plan](docs/FINAL_PRODUCT_PLAN.md) for feature specifications, data sources, two-person ownership, dated phases and acceptance checks. The [research appendix](docs/PLAN_RESEARCH.md) records competitive findings and provider constraints checked on 2 November 2026.
 
 ## Demo video
 
@@ -165,6 +169,12 @@ docker exec -w /app samudrasense_backend python scripts/seed_demo.py
 ```
 
 Compose starts PostGIS, Redis, the API, a Celery worker and the frontend, and runs the database migrations on start. To use Supabase instead of the local database, set `DATABASE_URL` in `infra/.env`.
+
+For an empty local database, set `SEED_DEMO_IF_EMPTY=true` in `infra/.env` before starting Compose to load the synthetic demonstration once. Existing AIS records cause automatic seeding to be skipped. The manual seed command above **replaces records for the demo MMSIs and updates sample protected-area boundaries**; back up the database first if it contains data you need to keep. Demo vessels and boundaries are fictional/indicative, and timestamps eventually become stale.
+
+Open **Alerts** to review scored vessels, open a vessel's evidence page, then create a report snapshot. Reports hash the captured AIS evidence and require a named reviewer and review checkbox; the hash and name are stored in the same database, so this is neither a digital signature nor identity verification. Reports are never sent by the app. The prototype API has no authentication and must not be exposed publicly.
+
+`POST /api/v1/sar/detections` accepts an externally generated georeferenced detection with `observed_at` (timezone required), `latitude`, `longitude`, `source`, `scene_id`, and optional `confidence`. It stores the detection and the closest AIS ping within 2 km and 15 minutes as a **candidate**, not a confirmed identity. An unmatched detection does not prove that AIS was deliberately switched off. This endpoint does not run a SAR model; validate real scenes and detection accuracy before operational use.
 
 If you ran an older version of this stack, reset the database volume once, because the default database name and user changed: `docker compose -f infra/docker-compose.yml down -v`.
 

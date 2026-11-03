@@ -109,6 +109,11 @@ def main():
     ]
     db = SessionLocal()
     try:
+        if "--if-empty" in sys.argv:
+            count = db.execute(text("SELECT count(*) FROM vessel_tracks")).scalar_one()
+            if count:
+                print("Existing AIS records found; automatic demo seed skipped")
+                return
         load_sample_mpas(db)
         db.execute(text("DELETE FROM vessel_tracks WHERE mmsi = ANY(:mmsi)"), {"mmsi": [v["mmsi"] for v in vessels]})
         rows = [

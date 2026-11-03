@@ -1,0 +1,23 @@
+# Low-cost path to maritime monitoring
+
+Research checked 1 November 2026. Access, coverage, retention, quotas and licence terms can change; check each provider before deployment. Free data is not automatically open source or unrestricted for commercial use.
+
+| Need | Candidate | Practical use and limits |
+|---|---|---|
+| Vessel detections, activity, encounters and identity | [Global Fishing Watch APIs](https://globalfishingwatch.org/our-apis/) and [SAR detections](https://globalfishingwatch.org/platform-update/2024-may-global-fishing-watch-apis-new-dataset-in-4wings-api-featuring-vessel-detections-from-sentinel-1-sar/) | Existing AIS-matched and unmatched Sentinel-1 detections can jump-start validation without training a model. Account and API token required; [API documentation](https://globalfishingwatch.org/our-apis/documentation/) states non-commercial use. Check dataset latency, spatial detail, attribution and redistribution terms. |
+| Own SAR inference | [Ai2 Skylight xView3 detector and weights](https://github.com/allenai/sar_vessel_detect) | A trained model and code exist. Its preprocessing and runtime differ from the existing YOLO pollution detector: use a separate adapter, check model and dependency licences, run on real xView3 scenes, and report held-out precision/recall before claiming detection. |
+| SAR imagery | [Copernicus Data Space](https://dataspace.copernicus.eu/data-collections/copernicus-sentinel-missions/sentinel-1), [APIs](https://dataspace.copernicus.eu/analyse/apis) | Sentinel-1 imagery and discovery/download services. Registration and service quotas apply. SAR revisit and processing latency constrain timeliness; store scene metadata and acquisition time. |
+| Live AIS | [AISStream](https://aisstream.io/) | Free WebSocket feed with geographic filters and API key. Test actual receiver coverage around Indian coasts and usage terms; a sparse feed cannot establish that a vessel intentionally went dark. |
+| Weather and waves | [Open-Meteo Marine](https://open-meteo.com/en/docs/marine-weather-api) | Currently used for gap-time context. Public endpoint is non-commercial and subject to limits. Forecast/reanalysis values are estimates; record model, coordinates, time and uncertainty. No automatic downgrade until validated. |
+| Ocean conditions | [Copernicus Marine data](https://data.marine.copernicus.eu/products) | SST, chlorophyll and currents are inputs for experimental hotspots and spill modelling. Assess regional resolution, access and temporal availability; compare hotspot forecasts with future fishing effort using a time-separated holdout. |
+| Protected areas | [Protected Planet WDPA](https://www.protectedplanet.net/en/thematic-areas/wdpa) | Replace indicative polygons with authoritative boundaries and dates, and check national sources. The public dataset has [non-commercial and redistribution restrictions](https://www.protectedplanet.net/en/legal); commercial use requires a suitable licence. |
+| Spill trajectories | [NOAA PyGNOME](https://response.restoration.noaa.gov/oil-and-chemical-spills/oil-spills/response-tools/gnome-suite-oil-spill-modeling.html) | Evaluate the Python engine with regional current/wind inputs and uncertainty rather than inventing spill physics. |
+
+## Suggested sequence
+
+1. Obtain a GFW token and a representative real SAR detection export; map its exact schema, acquisition timestamp and attribution to `/api/v1/sar/detections`. The existing endpoint is a manual import primitive, not a GFW connector. Compare its candidate match against GFW's published match and unmatched data.
+2. Download a small held-out xView3 scene and benchmark Ai2's model in an isolated environment. [xView3 requires registration/login](https://iuu.xview.us/) for its data. Preserve scene and model versions, labels, confusion matrix, precision, recall, runtime and hardware. Don't infer identity from proximity alone.
+3. Add a server-side AISStream adapter with bounded queues, deduplication, reconnects and coverage monitoring; validate the feed in the target area before relying on gap alerts.
+4. Import licensed, current protected-area polygons and compare both location and applicable restrictions with Indian authorities. Add audit-ready source IDs and an explicit demo/real-data distinction.
+5. Build officer authentication, tamper-evident append-only evidence and real sign-off before operational dispatch. Current SHA-256 snapshots and typed names are prototype features, not chain of custody or verified signatures.
+6. Add offline basemaps and cached data, then measure the whole workflow on the target workstation. Current weather, tiles and Gemini require network access.

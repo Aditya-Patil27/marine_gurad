@@ -18,4 +18,18 @@ export const mapApi = {
   zones: () => api.get('/map/zones').then((r) => r.data),
 }
 
+export const reportsApi = {
+  list: () => api.get('/reports/').then((r) => r.data),
+  create: (mmsi) => api.post('/reports/', { mmsi }).then((r) => r.data),
+  sign: (id, officer, reviewed) => api.post(`/reports/${id}/sign`, { officer, reviewed }).then((r) => r.data),
+}
+
+export const weatherApi = {
+  vessel: (mmsi) => api.get(`/weather/${mmsi}`).then((r) => r.data),
+}
+
+export const sarApi = {
+  detections: () => api.get('/sar/detections').then((r) => r.data),
+}
+
 export default api
