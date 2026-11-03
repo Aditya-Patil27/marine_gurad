@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { dateTimeIST, sourceLabel } from '@/lib/format'
+import { dateTimeIST, modeLabel, sourceLabel } from '@/lib/format'
 
 describe('sourceLabel', () => {
   it('returns Live data for live data_mode', () => {
@@ -57,5 +57,39 @@ describe('dateTimeIST', () => {
 
   it('returns Time not reported when ISO string has no Z and no offset', () => {
     expect(dateTimeIST('2026-10-13T06:40:48')).toBe('Time not reported')
+  })
+
+  it('returns Time not reported with no exception for out-of-range ISO timestamp (O)', () => {
+    expect(dateTimeIST('2026-13-45T00:00:00Z')).toBe('Time not reported')
+  })
+})
+
+describe('modeLabel', () => {
+  it('returns Live data for live data_mode', () => {
+    expect(modeLabel({ data_mode: 'live' })).toBe('Live data')
+  })
+
+  it('returns Historical data for historical data_mode', () => {
+    expect(modeLabel({ data_mode: 'historical' })).toBe('Historical data')
+  })
+
+  it('returns Cached data for cached data_mode', () => {
+    expect(modeLabel({ data_mode: 'cached' })).toBe('Cached data')
+  })
+
+  it('returns Synthetic data for synthetic data_mode', () => {
+    expect(modeLabel({ data_mode: 'synthetic' })).toBe('Synthetic data')
+  })
+
+  it('returns Mode not reported for {}, null, undefined, or null data_mode', () => {
+    expect(modeLabel({})).toBe('Mode not reported')
+    expect(modeLabel(null)).toBe('Mode not reported')
+    expect(modeLabel(undefined)).toBe('Mode not reported')
+    expect(modeLabel({ data_mode: null })).toBe('Mode not reported')
+  })
+
+  it('returns Mode not reported for realtime and constructor', () => {
+    expect(modeLabel({ data_mode: 'realtime' })).toBe('Mode not reported')
+    expect(modeLabel({ data_mode: 'constructor' })).toBe('Mode not reported')
   })
 })

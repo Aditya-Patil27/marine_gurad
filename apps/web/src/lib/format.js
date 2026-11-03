@@ -106,3 +106,8 @@ const DATA_MODES = {
 /** Never guess: a missing or unknown mode must not read as live. Only this helper reads `data_mode`, so a contract rename is one line. */
 export const sourceLabel = (record) =>
   Object.hasOwn(DATA_MODES, record?.data_mode ?? '') ? DATA_MODES[record.data_mode] : 'Source not reported'
+
+export function modeLabel(record) {
+  const label = sourceLabel(record)
+  return label === 'Source not reported' ? 'Mode not reported' : label
+}

@@ -9,7 +9,7 @@ export default function NotBuiltYet({ title = 'Not built yet', what }) {
       <div className="card max-w-md p-8">
         <h1 className="text-2xl">{title}</h1>
         {what && <p className="mt-2 text-[15px] text-muted">{what}</p>}
-        <p className="mt-4 text-sm text-faint">This screen is designed but not built yet. It is planned for the 10 Nov prototype.</p>
+        <p className="mt-4 text-sm text-faint">This screen is designed but not built yet.</p>
         <Link to={mmsi ? `/map?vessel=${encodeURIComponent(mmsi)}` : '/map'} className="btn btn-primary mt-6">
           Back to the map
         </Link>

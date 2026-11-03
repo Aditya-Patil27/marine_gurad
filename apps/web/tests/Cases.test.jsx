@@ -1,9 +1,9 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { EvidencePage, ReportsPage } from '@/pages/Cases'
+import { AlertsPage, EvidencePage, ReportsPage } from '@/pages/Cases'
 import { reportsApi, sarApi, vesselsApi, weatherApi } from '@/lib/api'
-import { httpError, networkError, seaPearlDetail } from './fixtures'
+import { fleet, httpError, networkError, seaPearlDetail } from './fixtures'
 
 vi.mock('@/lib/api', async (original) => ({
   ...(await original()),
@@ -49,6 +49,17 @@ async function openReports(url = '/reports') {
     <MemoryRouter initialEntries={[url]}>
       <Routes>
         <Route path="/reports" element={<ReportsPage />} />
+      </Routes>
+    </MemoryRouter>,
+  )
+  await act(async () => {})
+}
+
+async function openAlerts() {
+  render(
+    <MemoryRouter initialEntries={['/alerts']}>
+      <Routes>
+        <Route path="/alerts" element={<AlertsPage />} />
       </Routes>
     </MemoryRouter>,
   )
@@ -417,7 +428,7 @@ describe('Cases / EvidencePage & ReportsPage', () => {
     expect(screen.getByText(/Weather data: Historical data/)).toBeTruthy()
   })
 
-  it('shows source not reported and weather data source not reported with no undefined when fields are missing', async () => {
+  it('shows source not reported and weather data mode not reported with no undefined when fields are missing', async () => {
     vesselsApi.get.mockResolvedValue(seaPearlDetail)
     const weatherData = {
       status: 'available',
@@ -429,8 +440,7 @@ describe('Cases / EvidencePage & ReportsPage', () => {
 
     await openEvidence('419007431')
 
-    expect(screen.getByText(/Source: Source not reported/)).toBeTruthy()
-    expect(screen.getByText(/Weather data: Source not reported/)).toBeTruthy()
+    expect(screen.getByText(/Source not reported · Weather data: Mode not reported/)).toBeTruthy()
     expect(screen.queryByText(/undefined/)).toBeNull()
   })
 
@@ -501,7 +511,7 @@ describe('Cases / EvidencePage & ReportsPage', () => {
 
     await openReports('/reports')
 
-    expect(screen.getByText(/SAR data: Source not reported/)).toBeTruthy()
+    expect(screen.getByText(/SAR data: Mode not reported/)).toBeTruthy()
     expect(screen.getByText(/Identity not confirmed\./)).toBeTruthy()
   })
 
@@ -630,5 +640,148 @@ describe('Cases / EvidencePage & ReportsPage', () => {
     expect(link.textContent).toContain('Time not reported · Awaiting review')
     expect(screen.getByRole('heading', { name: 'Incident reports' })).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Vessel investigation: Sea Pearl II' })).toBeTruthy()
+  })
+
+  it('shows alerts intro without not yet automated and with weather does not change scores (B)', async () => {
+    vesselsApi.list.mockResolvedValue(fleet)
+    await openAlerts()
+    expect(screen.getByText(/Weather does not change these scores/)).toBeTruthy()
+    expect(document.body.textContent).not.toContain('not yet automated')
+  })
+
+  it('shows alerts row with display names and no raw uppercase name (C)', async () => {
+    vesselsApi.list.mockResolvedValue(fleet)
+    await openAlerts()
+    expect(screen.getByText('Sea Pearl II went dark for 6.4 h')).toBeTruthy()
+    expect(document.body.textContent).not.toContain('SEA PEARL II')
+  })
+
+  it('shows display name in evidence factor and page does not contain raw name (D)', async () => {
+    vesselsApi.get.mockResolvedValue(seaPearlDetail)
+    await openEvidence('419007431')
+    expect(screen.getByText('Met Hai Feng 818')).toBeTruthy()
+    expect(document.body.textContent).not.toContain('HAI FENG 818')
+  })
+
+  it('shows singular count for gap and encounter on evidence (E)', async () => {
+    vesselsApi.get.mockResolvedValue(seaPearlDetail)
+    await openEvidence('419007431')
+    expect(screen.getByText('3 AIS positions · 1 gap · 1 encounter')).toBeTruthy()
+  })
+
+  it('shows singular AIS position and plural gaps and encounters for 1 track, 2 gaps, 0 encounters (F)', async () => {
+    vesselsApi.get.mockResolvedValue({
+      ...seaPearlDetail,
+      track: [seaPearlDetail.track[0]],
+      gaps: [seaPearlDetail.gaps[0], { ...seaPearlDetail.gaps[0], start: '2026-10-13T01:00:00Z' }],
+      encounters: [],
+    })
+    await openEvidence('419007431')
+    expect(screen.getByText('1 AIS position · 2 gaps · 0 encounters')).toBeTruthy()
+  })
+
+  it('shows formatted encounter vessel name, distance, and duration (G)', async () => {
+    vesselsApi.get.mockResolvedValue(seaPearlDetail)
+    await openEvidence('419007431')
+    expect(screen.getByText('Hai Feng 818 · closest 371 m · 2 h 28 m')).toBeTruthy()
+  })
+
+  it('shows MMSI prefix when encounter has null name and page still draws (H)', async () => {
+    vesselsApi.get.mockResolvedValue({
+      ...seaPearlDetail,
+      encounters: [{ ...seaPearlDetail.encounters[0], name: null }],
+    })
+    await openEvidence('419007431')
+    expect(screen.getByText(/^MMSI 412440918 · closest/)).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Sea Pearl II' })).toBeTruthy()
+  })
+
+  it('shows weather source and Mode not reported when weather source is known but mode is missing (I)', async () => {
+    vesselsApi.get.mockResolvedValue(seaPearlDetail)
+    weatherApi.vessel.mockResolvedValue({
+      status: 'available',
+      wind_kn: 12,
+      wave_m: 1.2,
+      time_utc: '2026-10-13T06:40:48Z',
+      source: 'Open-Meteo forecast/model data',
+    })
+    await openEvidence('419007431')
+    const weatherLine = screen.getByText(/Weather at AIS gap:/).parentElement
+    expect(weatherLine.textContent).toContain('Source: Open-Meteo forecast/model data · Weather data: Mode not reported')
+    expect(weatherLine.textContent).not.toContain('Source not reported')
+  })
+
+  it('shows Source not reported · Weather data: Mode not reported and never Source: Source (J)', async () => {
+    vesselsApi.get.mockResolvedValue(seaPearlDetail)
+    weatherApi.vessel.mockResolvedValue({
+      status: 'available',
+      wind_kn: 12,
+      wave_m: 1.2,
+      time_utc: '2026-10-13T06:40:48Z',
+    })
+    await openEvidence('419007431')
+    const weatherLine = screen.getByText(/Weather at AIS gap:/).parentElement
+    expect(weatherLine.textContent).toContain('Source not reported · Weather data: Mode not reported')
+    expect(document.body.textContent).not.toContain('Source: Source')
+  })
+
+  it('shows SAR data: Mode not reported and no Source not reported on SAR line when SAR mode is missing (K)', async () => {
+    vesselsApi.get.mockResolvedValue(seaPearlDetail)
+    sarApi.detections.mockResolvedValue([
+      {
+        id: 'sar-1',
+        matched_mmsi: 419007431,
+        source: 'Sentinel-1',
+        scene_id: 'S1A_IW_GRDH_1SDV',
+        match_distance_m: 520,
+      },
+    ])
+    await openEvidence('419007431')
+    const sarLine = screen.getByText(/SAR data:/).closest('p')
+    expect(sarLine.textContent).toContain('SAR data: Mode not reported')
+    expect(sarLine.textContent).not.toContain('Source not reported')
+  })
+
+  it('shows display name in report factor row and keeps raw JSON in snapshot (L)', async () => {
+    reportsApi.list.mockResolvedValue([sampleReport])
+    await openReports('/reports')
+    const factorRow = screen.getByText('Met Hai Feng 818').closest('div')
+    expect(factorRow.textContent).toContain('Met Hai Feng 818')
+  })
+
+  it('draws report when snapshot has no encounters and shows singular AIS position for 1 track point (M)', async () => {
+    const reportNoEncounters = {
+      ...sampleReport,
+      id: 1,
+      snapshot: {
+        ...seaPearlDetail,
+        encounters: undefined,
+      },
+    }
+    const reportOneTrack = {
+      ...sampleReport,
+      id: 2,
+      snapshot: {
+        ...seaPearlDetail,
+        track: [seaPearlDetail.track[0]],
+      },
+    }
+    reportsApi.list.mockResolvedValue([reportNoEncounters, reportOneTrack])
+    await openReports('/reports?id=1')
+    expect(screen.getByRole('heading', { name: 'Incident reports' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Vessel investigation: Sea Pearl II' })).toBeTruthy()
+
+    await openReports('/reports?id=2')
+    expect(screen.getByText(/View source snapshot \(1 AIS position\)/)).toBeTruthy()
+  })
+
+  it('does not contain IST IST on evidence or report pages (N)', async () => {
+    vesselsApi.get.mockResolvedValue(seaPearlDetail)
+    await openEvidence('419007431')
+    expect(document.body.textContent).not.toContain('IST IST')
+
+    reportsApi.list.mockResolvedValue([sampleReport])
+    await openReports('/reports')
+    expect(document.body.textContent).not.toContain('IST IST')
   })
 })
