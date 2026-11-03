@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { sourceLabel } from '@/lib/format'
+import { dateTimeIST, sourceLabel } from '@/lib/format'
 
 describe('sourceLabel', () => {
   it('returns Live data for live data_mode', () => {
@@ -29,5 +29,33 @@ describe('sourceLabel', () => {
     expect(sourceLabel({ data_mode: 'LIVE' })).toBe('Source not reported')
     expect(sourceLabel({ data_mode: 'realtime' })).toBe('Source not reported')
     expect(sourceLabel({ data_mode: 'constructor' })).toBe('Source not reported')
+  })
+})
+
+describe('dateTimeIST', () => {
+  it('formats UTC ISO timestamp with Z ending to IST', () => {
+    expect(dateTimeIST('2026-10-13T06:40:48Z')).toBe('13 Oct 2026, 12:10 IST')
+  })
+
+  it('formats ISO timestamp with +00:00 offset to IST', () => {
+    expect(dateTimeIST('2026-10-13T06:40:48+00:00')).toBe('13 Oct 2026, 12:10 IST')
+  })
+
+  it('formats timestamp where the date moves to IST on midnight', () => {
+    expect(dateTimeIST('2026-11-03T18:30:00Z')).toBe('4 Nov 2026, 00:00 IST')
+  })
+
+  it('returns Time not reported for null, undefined, or empty string', () => {
+    expect(dateTimeIST(null)).toBe('Time not reported')
+    expect(dateTimeIST(undefined)).toBe('Time not reported')
+    expect(dateTimeIST('')).toBe('Time not reported')
+  })
+
+  it('returns Time not reported with no exception for invalid date string', () => {
+    expect(dateTimeIST('not a date')).toBe('Time not reported')
+  })
+
+  it('returns Time not reported when ISO string has no Z and no offset', () => {
+    expect(dateTimeIST('2026-10-13T06:40:48')).toBe('Time not reported')
   })
 })

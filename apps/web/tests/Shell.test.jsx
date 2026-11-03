@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import Shell from '@/components/Shell'
@@ -155,6 +155,42 @@ describe('shell', () => {
 
       expect(banner()).toBeTruthy()
       expect(screen.getByRole('alert').textContent).toContain('This screen stopped working')
+    })
+
+    it('applies pill-amber warning class for rows that warn: offline with data, offline with no data, API error with no data (K)', async () => {
+      // offline with data
+      const onlineSpy = vi.spyOn(window.navigator, 'onLine', 'get').mockReturnValue(false)
+      vesselsApi.list.mockResolvedValue({ ...fleet, data_mode: 'live' })
+      await open('/alerts')
+      expect(banner().className).toContain('pill-amber')
+      cleanup()
+
+      // offline with no data
+      vesselsApi.list.mockReturnValue(new Promise(() => {}))
+      await open('/alerts')
+      expect(banner().className).toContain('pill-amber')
+      cleanup()
+
+      // API error with no data
+      onlineSpy.mockReturnValue(true)
+      vesselsApi.list.mockRejectedValue(new Error('Network error'))
+      await open('/alerts')
+      expect(banner().className).toContain('pill-amber')
+      cleanup()
+    })
+
+    it('does not apply pill-amber class for rows that do not warn: checking data source and data mode shown (L)', async () => {
+      // checking the data source
+      vesselsApi.list.mockReturnValue(new Promise(() => {}))
+      await open('/alerts')
+      expect(banner().className).not.toContain('pill-amber')
+      cleanup()
+
+      // data mode shown
+      vesselsApi.list.mockResolvedValue({ ...fleet, data_mode: 'live' })
+      await open('/alerts')
+      expect(banner().className).not.toContain('pill-amber')
+      cleanup()
     })
   })
 })

@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { CircleAlert, CircleCheck, CircleHelp, CircleMinus, X } from 'lucide-react'
 import { isNotFound } from '../../lib/api'
-import { CLEARS, levelStyle, score, sourceLabel, timeIST, vesselName, vesselType, withDisplayNames } from '../../lib/format'
+import { CLEARS, dateTimeIST, levelStyle, score, sourceLabel, vesselName, vesselType, withDisplayNames } from '../../lib/format'
 
 const CHECK_ICON = {
   ruled_out: { Icon: CircleCheck, className: 'text-risk-green', label: 'Ruled out' },
@@ -88,7 +88,7 @@ export default function VesselPanel({ detail, mmsi, error, loading, onClose, onR
           <div className="text-muted">
             {meta} · <span className="num text-[12.5px]">MMSI {detail.mmsi}</span>
           </div>
-          <div className="text-[13px] text-faint">Last position {timeIST(detail.last_seen)} IST</div>
+          <div className="text-[13px] text-faint">Last position {dateTimeIST(detail.last_seen)}</div>
           <div className="text-[13px] text-faint">AIS data: {sourceLabel(detail)}</div>
         </div>
 

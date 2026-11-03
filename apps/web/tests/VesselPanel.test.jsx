@@ -101,4 +101,12 @@ describe('VesselPanel', () => {
     expect(screen.getByText('AIS data: Cached data')).toBeTruthy()
     expect(screen.queryByText(/Live data/)).toBeNull()
   })
+
+  it('shows formatted date and timezone on last position and does not duplicate IST (J)', () => {
+    show({ detail: seaPearlDetail })
+
+    const panel = screen.getByRole('complementary')
+    expect(panel.textContent).toContain('Last position 13 Oct 2026, 12:10 IST')
+    expect(panel.textContent).not.toContain('IST IST')
+  })
 })

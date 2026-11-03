@@ -504,4 +504,131 @@ describe('Cases / EvidencePage & ReportsPage', () => {
     expect(screen.getByText(/SAR data: Source not reported/)).toBeTruthy()
     expect(screen.getByText(/Identity not confirmed\./)).toBeTruthy()
   })
+
+  it('shows formatted date and timezone for last observed when evidence opens (A)', async () => {
+    vesselsApi.get.mockResolvedValue(seaPearlDetail)
+    await openEvidence('419007431')
+    expect(screen.getByText(/Last observed 13 Oct 2026, 12:10 IST/)).toBeTruthy()
+  })
+
+  it('formats weather observation time and omits raw time_utc string (B)', async () => {
+    vesselsApi.get.mockResolvedValue(seaPearlDetail)
+    weatherApi.vessel.mockResolvedValue({
+      status: 'available',
+      wind_kn: 14,
+      wave_m: 1.8,
+      time_utc: '2026-10-13T06:40:48Z',
+      source: 'INCOIS WRF-Chem',
+      data_mode: 'historical',
+    })
+    await openEvidence('419007431')
+    expect(screen.getByText(/at 13 Oct 2026, 12:10 IST/)).toBeTruthy()
+    expect(screen.queryByText(/2026-10-13T06:40:48Z/)).toBeNull()
+  })
+
+  it('formats last observed on report and shows no raw last_seen string outside source snapshot (C)', async () => {
+    reportsApi.list.mockResolvedValue([sampleReport])
+    await openReports('/reports')
+    expect(screen.getByText(/Last observed 13 Oct 2026, 12:10 IST/)).toBeTruthy()
+    const article = screen.getByRole('article')
+    const details = article.querySelector('details')
+    const textWithoutDetails = Array.from(article.childNodes)
+      .filter((n) => n !== details)
+      .map((n) => n.textContent)
+      .join(' ')
+    expect(textWithoutDetails).not.toContain('2026-10-13T06:40:48Z')
+  })
+
+  it('formats SAR candidate observed_at and omits raw timezone offset (D)', async () => {
+    const reportWithSar = {
+      ...sampleReport,
+      snapshot: {
+        ...seaPearlDetail,
+        sar_candidates: [
+          {
+            id: 'sar-1',
+            source: 'Sentinel-1',
+            scene_id: 'S1A_IW_GRDH_1SDV',
+            observed_at: '2026-10-13T06:40:48+00:00',
+            match_distance_m: 520,
+          },
+        ],
+      },
+    }
+    reportsApi.list.mockResolvedValue([reportWithSar])
+    await openReports('/reports')
+    const sarLine = screen.getByText(/SAR candidate:/).closest('div')
+    expect(sarLine.textContent).toContain('13 Oct 2026, 12:10 IST')
+    expect(sarLine.textContent).not.toContain('+00:00')
+  })
+
+  it('formats signed_at timestamp on signed report (E)', async () => {
+    const signedReport = {
+      ...sampleReport,
+      signed_at: '2026-11-03T10:00:00Z',
+      signed_by: 'Officer Rao',
+    }
+    reportsApi.list.mockResolvedValue([signedReport])
+    await openReports('/reports')
+    expect(screen.getByText('Signed by Officer Rao at 3 Nov 2026, 15:30 IST')).toBeTruthy()
+  })
+
+  it('shows different dates in report list links for two reports of one vessel (F)', async () => {
+    const report1 = {
+      ...sampleReport,
+      id: 1,
+      created_at: '2026-10-13T06:40:48Z',
+    }
+    const report2 = {
+      ...sampleReport,
+      id: 2,
+      created_at: '2026-10-14T06:40:48Z',
+    }
+    reportsApi.list.mockResolvedValue([report1, report2])
+    await openReports('/reports')
+    const link1 = screen.getByRole('link', { name: /#1/ })
+    const link2 = screen.getByRole('link', { name: /#2/ })
+    expect(link1.textContent).toContain('13 Oct 2026')
+    expect(link2.textContent).toContain('14 Oct 2026')
+    expect(link1.textContent).not.toEqual(link2.textContent)
+  })
+
+  it('shows date and awaiting review status on unsigned report list link (G)', async () => {
+    const unsignedReport = {
+      ...sampleReport,
+      created_at: '2026-10-13T06:40:48Z',
+      signed_at: null,
+    }
+    reportsApi.list.mockResolvedValue([unsignedReport])
+    await openReports('/reports')
+    const link = screen.getByRole('link', { name: /#1/ })
+    expect(link.textContent).toContain('13 Oct 2026, 12:10 IST · Awaiting review')
+  })
+
+  it('shows signed status on signed report list link (H)', async () => {
+    const signedReport = {
+      ...sampleReport,
+      created_at: '2026-10-13T06:40:48Z',
+      signed_at: '2026-11-03T10:00:00Z',
+      signed_by: 'Officer Rao',
+    }
+    reportsApi.list.mockResolvedValue([signedReport])
+    await openReports('/reports')
+    const link = screen.getByRole('link', { name: /#1/ })
+    expect(link.textContent).toContain('· Signed')
+  })
+
+  it('shows Time not reported · Awaiting review and draws page when report has no created_at (I)', async () => {
+    const noCreatedReport = {
+      ...sampleReport,
+      created_at: null,
+      signed_at: null,
+    }
+    reportsApi.list.mockResolvedValue([noCreatedReport])
+    await openReports('/reports')
+    const link = screen.getByRole('link', { name: /#1/ })
+    expect(link.textContent).toContain('Time not reported · Awaiting review')
+    expect(screen.getByRole('heading', { name: 'Incident reports' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Vessel investigation: Sea Pearl II' })).toBeTruthy()
+  })
 })

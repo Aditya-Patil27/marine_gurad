@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { vesselsApi, reportsApi, weatherApi, sarApi, isNotFound } from '../lib/api'
-import { score, sourceLabel, timeIST, vesselName } from '../lib/format'
+import { dateTimeIST, score, sourceLabel, vesselName } from '../lib/format'
 
 const surface = 'card p-5'
 
@@ -83,14 +83,14 @@ export function EvidencePage() {
     {!detail && !vesselError && <p>Loading evidence…</p>}
     {detail && <div className="grid gap-5 lg:grid-cols-2">
       <section className={surface}>
-        <p className="mb-2 text-muted">MMSI {detail.mmsi} · Last observed {timeIST(detail.last_seen)} IST</p>
+        <p className="mb-2 text-muted">MMSI {detail.mmsi} · Last observed {dateTimeIST(detail.last_seen)}</p>
         <p className="mb-2 text-muted">AIS data: {sourceLabel(detail)}</p>
         <p className="mb-4 text-3xl font-semibold text-navy">{score(detail.score)} <span className="text-base font-normal text-muted">risk score</span></p>
         <h2 className="mb-2 text-xl">Why it was flagged</h2>
         {detail.factors.length ? detail.factors.map(f => <div className="border-t border-line py-3" key={f.key}><b>{f.label}</b><span className="num float-right">+{score(f.points)}</span><p className="text-muted">{f.detail}</p></div>) : <p>No risk factors found.</p>}
         <h2 className="mb-2 mt-5 text-xl">Checks</h2>
         {detail.checks.map(c => <p className="border-t border-line py-2" key={c.key}><b>{c.label}:</b> {c.detail}</p>)}
-        <div className="mt-3 border-t border-line pt-3"><b>Weather at AIS gap:</b> {!weather ? 'Checking…' : weather.status === 'available' ? `${weather.wind_kn} kn wind, ${weather.wave_m} m waves at ${weather.time_utc}. Source: ${weather.source || 'Source not reported'} · Weather data: ${sourceLabel(weather)}${weather.note ? ` · ${weather.note}` : ''}` : weather.reason}</div>
+        <div className="mt-3 border-t border-line pt-3"><b>Weather at AIS gap:</b> {!weather ? 'Checking…' : weather.status === 'available' ? `${weather.wind_kn} kn wind, ${weather.wave_m} m waves at ${dateTimeIST(weather.time_utc)}. Source: ${weather.source || 'Source not reported'} · Weather data: ${sourceLabel(weather)}${weather.note ? ` · ${weather.note}` : ''}` : weather.reason}</div>
         <p className="mt-4 text-muted">AIS gaps and encounters are indicators, not proof of an offence.</p>
       </section>
       <section className={surface}>
@@ -145,22 +145,22 @@ export function ReportsPage() {
     {!reports && !error && <p>Loading reports…</p>}
     {reports?.length === 0 && <p>No reports yet. Open a vessel and create a report snapshot.</p>}
     {reports && reports.length > 0 && <div className="grid gap-5 lg:grid-cols-[220px_1fr_300px]">
-      <nav className={surface}>{reports.map(r => <Link className="block border-b border-line py-2" to={`/reports?id=${r.id}`} key={r.id}>#{r.id} · {vesselName(r.snapshot)}</Link>)}</nav>
+      <nav className={surface}>{reports.map(r => <Link className="block border-b border-line py-2" to={`/reports?id=${r.id}`} key={r.id}>#{r.id} · {vesselName(r.snapshot)}<span className="block text-[13px] text-muted">{dateTimeIST(r.created_at)} · {r.signed_at ? 'Signed' : 'Awaiting review'}</span></Link>)}</nav>
       {reportNotFound ? (
         <p role="alert" className={surface}>Report #{reportId} was not found.</p>
       ) : selected ? (
         <>
           <article className={surface}><p className="text-muted">REPORT #{selected.id} · {selected.signed_at ? 'Signed' : 'Awaiting review'}</p><h2 className="my-4 text-2xl">Vessel investigation: {vesselName(selected.snapshot)}</h2>
-            <p>MMSI <b className="num">{selected.mmsi}</b> · Risk <b className="num">{score(selected.snapshot.score)}</b> · Last observed {selected.snapshot.last_seen}</p>
+            <p>MMSI <b className="num">{selected.mmsi}</b> · Risk <b className="num">{score(selected.snapshot.score)}</b> · Last observed {dateTimeIST(selected.snapshot.last_seen)}</p>
             <h3 className="mb-2 mt-6 text-lg">Evidence and source</h3>
             <p className="text-muted">Values below come from the preserved AIS track and risk-engine calculation in this snapshot.</p>
             <p className="text-muted">AIS data: {sourceLabel(selected.snapshot)}</p>
             {selected.snapshot.factors.map(f => <div key={f.key} className="border-b border-line py-3"><b>{f.label}</b> · {f.detail} · +{score(f.points)}</div>)}
-            {selected.snapshot.sar_candidates?.map(d => <div key={d.id} className="border-b border-line py-3"><b>SAR candidate:</b> {d.source} · scene {d.scene_id} · {d.observed_at} · {Math.round(d.match_distance_m)} m from AIS · SAR data: {sourceLabel(d)}. Identity not confirmed.</div>)}
+            {selected.snapshot.sar_candidates?.map(d => <div key={d.id} className="border-b border-line py-3"><b>SAR candidate:</b> {d.source} · scene {d.scene_id} · {dateTimeIST(d.observed_at)} · {Math.round(d.match_distance_m)} m from AIS · SAR data: {sourceLabel(d)}. Identity not confirmed.</div>)}
             <details className="mt-4"><summary>View source snapshot ({selected.snapshot.track.length} AIS positions)</summary><pre className="mt-2 max-h-64 overflow-auto text-xs">{JSON.stringify(selected.snapshot, null, 2)}</pre></details>
           </article>
           <aside className={surface}><h2 className="text-xl">Evidence integrity</h2><p className="mt-2">{selected.integrity_ok ? 'Snapshot hash verified' : 'Hash mismatch — sign-off blocked'}</p><p className="mt-2 text-xs text-muted">The hash detects accidental changes; it is stored alongside the evidence and is not a digital signature.</p><p className="num mt-2 break-all text-xs text-muted">SHA-256 {selected.sha256}</p>
-            {selected.signed_at ? <p className="mt-5">Signed by {selected.signed_by} at {selected.signed_at}</p> : <div className="mt-5"><label className="block">Officer name<input className="mt-1 w-full rounded border border-line p-2" value={officer} onChange={e => setOfficer(e.target.value)} /></label><label className="my-4 flex gap-2"><input type="checkbox" checked={reviewed} onChange={e => setReviewed(e.target.checked)} />I reviewed the evidence and source snapshot.</label><button className="btn btn-primary w-full" disabled={!selected.integrity_ok || !reviewed || !officer.trim()} onClick={sign}>Record sign-off</button></div>}
+            {selected.signed_at ? <p className="mt-5">Signed by {selected.signed_by} at {dateTimeIST(selected.signed_at)}</p> : <div className="mt-5"><label className="block">Officer name<input className="mt-1 w-full rounded border border-line p-2" value={officer} onChange={e => setOfficer(e.target.value)} /></label><label className="my-4 flex gap-2"><input type="checkbox" checked={reviewed} onChange={e => setReviewed(e.target.checked)} />I reviewed the evidence and source snapshot.</label><button className="btn btn-primary w-full" disabled={!selected.integrity_ok || !reviewed || !officer.trim()} onClick={sign}>Record sign-off</button></div>}
           </aside>
         </>
       ) : null}

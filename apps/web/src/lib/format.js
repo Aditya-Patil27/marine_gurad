@@ -8,6 +8,36 @@ const istTime = new Intl.DateTimeFormat('en-IN', {
 /** 14:32 in India Standard Time, which is what officers on this coast read. */
 export const timeIST = (iso) => (iso ? istTime.format(new Date(iso)) : '—')
 
+const istDateTime = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'Asia/Kolkata',
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+})
+
+const HAS_TZ = /\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}(?::?\d{2})?)$/i
+
+/** 13 Oct 2026, 12:10 IST. Rejects timestamps without explicit timezone. */
+export function dateTimeIST(iso) {
+  if (typeof iso !== 'string' || !iso.trim()) return 'Time not reported'
+  if (!HAS_TZ.test(iso.trim())) return 'Time not reported'
+  try {
+    const d = new Date(iso)
+    if (Number.isNaN(d.getTime())) return 'Time not reported'
+    const parts = istDateTime.formatToParts(d)
+    const p = {}
+    for (const part of parts) {
+      p[part.type] = part.value
+    }
+    return `${p.day} ${p.month} ${p.year}, ${p.hour}:${p.minute} IST`
+  } catch {
+    return 'Time not reported'
+  }
+}
+
 export const score = (value) => (value ?? 0).toFixed(2)
 
 const ROMAN = /^[IVX]+$/
