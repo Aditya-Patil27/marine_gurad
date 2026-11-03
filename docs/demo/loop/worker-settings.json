@@ -1,0 +1,42 @@
+{
+  "permissions": {
+    "allow": [
+      "command($PSVersionTable.PSVersion)",
+      "command(git branch --show-current)",
+      "command(regex:git (log|diff|show|status|rev-parse)( [^;&|$<>()\\x60\\r\\n]*)?)",
+      "command(regex:git add( --)? [A-Za-z][\\w./@-]*( [A-Za-z][\\w./@-]*)*)",
+      "command(regex:git commit -m (\"[^\"$\\x60]*\"|'[^']*')( -m (\"[^\"$\\x60]*\"|'[^']*'))*)",
+      "command(regex:npm( --prefix apps/web)? test( [^;&|$<>()\\x60\\r\\n]*)?)",
+      "command(regex:npm( --prefix apps/web)? run build)",
+      "command(regex:cd apps/web(;| &&) npm (test( [^;&|$<>()\\x60\\r\\n]*)?|run build))",
+      "write_file(apps/web/src/)",
+      "write_file(apps/web/tests/)",
+      "write_file(docs/demo/loop/REPORT.md)"
+    ],
+    "deny": [
+      "command(regex:git (push|pull|fetch|stash|checkout|restore|reset|clean|rebase|merge|cherry-pick|revert|switch|tag|remote|config|worktree|update-ref|filter-branch)( .*)?)",
+      "command(regex:git branch -[dDmM].*)",
+      "command(regex:git add( --)? (-A|--all|-u|--update|\\.|:/)( .*)?)",
+      "command(regex:git commit .*(--amend|--all|--no-verify| -a| -am).*)",
+      "command(regex:git (log|diff|show) .*--output.*)",
+      "command(regex:npm (install|i|ci|uninstall|update|add|remove)( .*)?)",
+      "command(regex:(New-Item|Copy-Item|Remove-Item|Move-Item|Set-Content|Add-Content|Out-File)( .*)?)",
+      "execute_url(*)",
+      "mcp(*)",
+      "write_file(apps/api/)",
+      "write_file(infra/)",
+      "write_file(docs/contracts/)",
+      "write_file(docs/DATA_MANIFEST.md)",
+      "write_file(docs/FINAL_PRODUCT_PLAN.md)",
+      "write_file(README.md)",
+      "write_file(apps/web/package.json)",
+      "write_file(apps/web/package-lock.json)",
+      "write_file(.git/)",
+      "write_file(.agents/)",
+      "write_file(.env)",
+      "read_file(.env)",
+      "read_file(apps/api/.env)",
+      "read_file(infra/.env)"
+    ]
+  }
+}
