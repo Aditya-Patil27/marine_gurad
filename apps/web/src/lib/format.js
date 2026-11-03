@@ -65,3 +65,14 @@ export const CLEARS = {
   position_jump: 'the jump turns out to be a GPS fault',
   fishing_in_park: 'it leaves the park',
 }
+
+const DATA_MODES = {
+  live: 'Live data',
+  historical: 'Historical data',
+  cached: 'Cached data',
+  synthetic: 'Synthetic data',
+}
+
+/** Never guess: a missing or unknown mode must not read as live. Only this helper reads `data_mode`, so a contract rename is one line. */
+export const sourceLabel = (record) =>
+  Object.hasOwn(DATA_MODES, record?.data_mode ?? '') ? DATA_MODES[record.data_mode] : 'Source not reported'

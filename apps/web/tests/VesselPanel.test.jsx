@@ -88,4 +88,17 @@ describe('VesselPanel', () => {
     expect(screen.getByRole('heading', { name: 'Sea Pearl II' })).toBeTruthy()
     expect(screen.getAllByText('critical').length).toBeGreaterThan(0)
   })
+
+  it('shows source not reported when vessel has no data_mode', () => {
+    show({ detail: seaPearlDetail })
+
+    expect(screen.getByText('AIS data: Source not reported')).toBeTruthy()
+  })
+
+  it('shows cached data and no live data when vessel has cached data_mode', () => {
+    show({ detail: { ...seaPearlDetail, data_mode: 'cached' } })
+
+    expect(screen.getByText('AIS data: Cached data')).toBeTruthy()
+    expect(screen.queryByText(/Live data/)).toBeNull()
+  })
 })

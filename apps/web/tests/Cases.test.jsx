@@ -388,4 +388,120 @@ describe('Cases / EvidencePage & ReportsPage', () => {
 
     expect(reportsApi.sign).toHaveBeenCalledWith(2, 'Officer Rao', true)
   })
+
+  it('shows AIS data source not reported for vessel with no data_mode in evidence', async () => {
+    vesselsApi.get.mockResolvedValue(seaPearlDetail)
+
+    await openEvidence('419007431')
+
+    expect(screen.getByText('AIS data: Source not reported')).toBeTruthy()
+  })
+
+  it('shows weather source, note, and historical data mode when weather is available', async () => {
+    vesselsApi.get.mockResolvedValue(seaPearlDetail)
+    const weatherData = {
+      status: 'available',
+      wind_kn: 14,
+      wave_m: 1.8,
+      time_utc: '2026-10-13T06:40:48Z',
+      source: 'INCOIS WRF-Chem',
+      note: 'Nearshore wave buoy reading.',
+      data_mode: 'historical',
+    }
+    weatherApi.vessel.mockResolvedValue(weatherData)
+
+    await openEvidence('419007431')
+
+    expect(screen.getByText(/INCOIS WRF-Chem/)).toBeTruthy()
+    expect(screen.getByText(/Nearshore wave buoy reading\./)).toBeTruthy()
+    expect(screen.getByText(/Weather data: Historical data/)).toBeTruthy()
+  })
+
+  it('shows source not reported and weather data source not reported with no undefined when fields are missing', async () => {
+    vesselsApi.get.mockResolvedValue(seaPearlDetail)
+    const weatherData = {
+      status: 'available',
+      wind_kn: 12,
+      wave_m: 1.2,
+      time_utc: '2026-10-13T06:40:48Z',
+    }
+    weatherApi.vessel.mockResolvedValue(weatherData)
+
+    await openEvidence('419007431')
+
+    expect(screen.getByText(/Source: Source not reported/)).toBeTruthy()
+    expect(screen.getByText(/Weather data: Source not reported/)).toBeTruthy()
+    expect(screen.queryByText(/undefined/)).toBeNull()
+  })
+
+  it('shows the reason and no weather data label when weather is unavailable', async () => {
+    vesselsApi.get.mockResolvedValue(seaPearlDetail)
+    weatherApi.vessel.mockResolvedValue({
+      status: 'unavailable',
+      reason: 'Weather service connection timed out.',
+    })
+
+    await openEvidence('419007431')
+
+    expect(screen.getByText(/Weather service connection timed out\./)).toBeTruthy()
+    expect(screen.queryByText(/Weather data:/)).toBeNull()
+  })
+
+  it('shows synthetic SAR data label and candidate match text on evidence page', async () => {
+    vesselsApi.get.mockResolvedValue(seaPearlDetail)
+    sarApi.detections.mockResolvedValue([
+      {
+        id: 'det-synth-1',
+        source: 'Sentinel-1 Simulated',
+        scene_id: 'S1A_SIM_2026',
+        matched_mmsi: 419007431,
+        match_distance_m: 350,
+        data_mode: 'synthetic',
+      },
+    ])
+
+    await openEvidence('419007431')
+
+    expect(screen.getByText(/SAR data: Synthetic data/)).toBeTruthy()
+    expect(screen.getByText(/Candidate match, not confirmed identity\./)).toBeTruthy()
+  })
+
+  it('shows cached AIS data label in report for snapshot with cached data_mode', async () => {
+    const reportWithCachedSnapshot = {
+      ...sampleReport,
+      snapshot: {
+        ...seaPearlDetail,
+        data_mode: 'cached',
+      },
+    }
+    reportsApi.list.mockResolvedValue([reportWithCachedSnapshot])
+
+    await openReports('/reports')
+
+    expect(screen.getByText('AIS data: Cached data')).toBeTruthy()
+  })
+
+  it('shows source not reported for SAR candidate in report with no data_mode', async () => {
+    const reportWithSar = {
+      ...sampleReport,
+      snapshot: {
+        ...seaPearlDetail,
+        sar_candidates: [
+          {
+            id: 'sar-1',
+            source: 'Sentinel-1',
+            scene_id: 'S1A_IW_GRDH_1SDV',
+            observed_at: '2026-10-13T06:40:48Z',
+            match_distance_m: 520,
+          },
+        ],
+      },
+    }
+    reportsApi.list.mockResolvedValue([reportWithSar])
+
+    await openReports('/reports')
+
+    expect(screen.getByText(/SAR data: Source not reported/)).toBeTruthy()
+    expect(screen.getByText(/Identity not confirmed\./)).toBeTruthy()
+  })
 })

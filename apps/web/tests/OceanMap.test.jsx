@@ -211,12 +211,8 @@ describe('OceanMap', () => {
 
     const trackSource = map.getSource('track')
     expect(trackSource).toBeDefined()
-    expect(trackSource.setData).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: 'FeatureCollection',
-        features: expect.any(Array),
-      }),
-    )
+    const sent = trackSource.setData.mock.calls.at(-1)[0]
+    expect(sent.features[0].geometry.coordinates).toEqual(seaPearlDetail.track.map((p) => [p.lon, p.lat]))
     expect(map.fitBounds).toHaveBeenCalledTimes(1)
   })
 
