@@ -120,7 +120,8 @@ export default function OceanMap({ vessels, zones, detail, showZones, showAll, o
     map.current = m
     m.touchZoomRotate.disableRotation()
 
-    m.on('load', () => {
+    // Not 'load': it waits for basemap tiles, and vessels must show while tiles are slow or failing
+    m.on('style.load', () => {
       m.addImage('arrow', arrowImage(), { sdf: true, pixelRatio: 2 })
 
       m.addSource('zones', { type: 'geojson', data: EMPTY })
