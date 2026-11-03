@@ -56,7 +56,7 @@ async function openReports(url = '/reports') {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
+  vi.resetAllMocks()
   weatherApi.vessel.mockResolvedValue({ status: 'unavailable', reason: 'Weather service unavailable.' })
   sarApi.detections.mockResolvedValue([])
 })
@@ -68,7 +68,7 @@ describe('Cases / EvidencePage & ReportsPage', () => {
 
     await openEvidence('419007431')
 
-    expect(screen.getByText("SAR detections didn't load, so a match can't be ruled out.")).toBeTruthy()
+    expect(screen.getByRole('alert').textContent).toContain("SAR detections didn't load, so a match can't be ruled out.")
     expect(screen.queryByText(/No candidate/)).toBeNull()
 
     const retryBtn = screen.getByRole('button', { name: 'Try again' })
@@ -226,5 +226,166 @@ describe('Cases / EvidencePage & ReportsPage', () => {
 
     expect(screen.getByRole('alert').textContent).toContain('Sign-off blocked: hash mismatch')
     expect(screen.getByRole('heading', { name: 'Vessel investigation: Sea Pearl II' })).toBeTruthy()
+  })
+
+  it('shows the box unticked on report 2 and disables sign-off when officer ticked report 1 then opened report 2', async () => {
+    reportsApi.list.mockResolvedValue([sampleReport, sampleReport2])
+
+    await openReports('/reports')
+
+    const officerInput = screen.getByLabelText(/Officer name/)
+    const checkbox = screen.getByLabelText(/I reviewed the evidence/)
+    const signBtn = screen.getByRole('button', { name: 'Record sign-off' })
+
+    fireEvent.change(officerInput, { target: { value: 'Officer Rao' } })
+    fireEvent.click(checkbox)
+    expect(checkbox.checked).toBe(true)
+    expect(signBtn.disabled).toBe(false)
+
+    const report2Link = screen.getByRole('link', { name: /#2/ })
+    await act(async () => {
+      fireEvent.click(report2Link)
+    })
+
+    const checkboxReport2 = screen.getByLabelText(/I reviewed the evidence/)
+    const signBtnReport2 = screen.getByRole('button', { name: 'Record sign-off' })
+
+    expect(checkboxReport2.checked).toBe(false)
+    expect(signBtnReport2.disabled).toBe(true)
+  })
+
+  it('shows the box unticked on report 1 when officer ticked report 1, opened report 2, then returned to report 1', async () => {
+    reportsApi.list.mockResolvedValue([sampleReport, sampleReport2])
+
+    await openReports('/reports')
+
+    const checkbox = screen.getByLabelText(/I reviewed the evidence/)
+    fireEvent.click(checkbox)
+    expect(checkbox.checked).toBe(true)
+
+    const report2Link = screen.getByRole('link', { name: /#2/ })
+    await act(async () => {
+      fireEvent.click(report2Link)
+    })
+
+    const report1Link = screen.getByRole('link', { name: /#1/ })
+    await act(async () => {
+      fireEvent.click(report1Link)
+    })
+
+    const checkboxReport1Again = screen.getByLabelText(/I reviewed the evidence/)
+    expect(checkboxReport1Again.checked).toBe(false)
+  })
+
+  it('does not show the rejection message on report 2 after sign-off on report 1 is rejected', async () => {
+    reportsApi.list.mockResolvedValue([sampleReport, sampleReport2])
+    const validationError = Object.assign(new Error('Unprocessable Entity'), {
+      response: {
+        status: 422,
+        data: {
+          detail: [
+            { loc: ['body', 'officer'], msg: 'String should have at most 120 characters', type: 'string_too_long' },
+          ],
+        },
+      },
+    })
+    reportsApi.sign.mockRejectedValueOnce(validationError)
+
+    await openReports('/reports')
+
+    const officerInput = screen.getByLabelText(/Officer name/)
+    const checkbox = screen.getByLabelText(/I reviewed the evidence/)
+    const signBtn = screen.getByRole('button', { name: 'Record sign-off' })
+
+    fireEvent.change(officerInput, { target: { value: 'A'.repeat(121) } })
+    fireEvent.click(checkbox)
+
+    await act(async () => {
+      fireEvent.click(signBtn)
+    })
+
+    expect(screen.getByRole('alert').textContent).toContain('The API rejected this sign-off. Check the officer name and try again.')
+
+    const report2Link = screen.getByRole('link', { name: /#2/ })
+    await act(async () => {
+      fireEvent.click(report2Link)
+    })
+
+    expect(screen.queryByText(/The API rejected this sign-off/)).toBeNull()
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('keeps the officer name when officer types on report 1 then opens report 2', async () => {
+    reportsApi.list.mockResolvedValue([sampleReport, sampleReport2])
+
+    await openReports('/reports')
+
+    const officerInput = screen.getByLabelText(/Officer name/)
+    fireEvent.change(officerInput, { target: { value: 'Officer Rao' } })
+
+    const report2Link = screen.getByRole('link', { name: /#2/ })
+    await act(async () => {
+      fireEvent.click(report2Link)
+    })
+
+    const officerInputReport2 = screen.getByLabelText(/Officer name/)
+    expect(officerInputReport2.value).toBe('Officer Rao')
+  })
+
+  it('keeps message, name and tick when sign-off is rejected and officer stays on that report', async () => {
+    reportsApi.list.mockResolvedValue([sampleReport, sampleReport2])
+    const validationError = Object.assign(new Error('Unprocessable Entity'), {
+      response: {
+        status: 422,
+        data: {
+          detail: [
+            { loc: ['body', 'officer'], msg: 'String should have at most 120 characters', type: 'string_too_long' },
+          ],
+        },
+      },
+    })
+    reportsApi.sign.mockRejectedValueOnce(validationError)
+
+    await openReports('/reports')
+
+    const officerInput = screen.getByLabelText(/Officer name/)
+    const checkbox = screen.getByLabelText(/I reviewed the evidence/)
+    const signBtn = screen.getByRole('button', { name: 'Record sign-off' })
+
+    fireEvent.change(officerInput, { target: { value: 'Officer Rao' } })
+    fireEvent.click(checkbox)
+
+    await act(async () => {
+      fireEvent.click(signBtn)
+    })
+
+    expect(screen.getByRole('alert').textContent).toContain('The API rejected this sign-off. Check the officer name and try again.')
+    expect(screen.getByLabelText(/Officer name/).value).toBe('Officer Rao')
+    expect(screen.getByLabelText(/I reviewed the evidence/).checked).toBe(true)
+  })
+
+  it('shows report 2 and calls sign with id 2 when visited at /reports?id=2', async () => {
+    reportsApi.list.mockResolvedValue([sampleReport, sampleReport2])
+
+    await openReports('/reports?id=2')
+
+    expect(screen.getByText('REPORT #2 · Awaiting review')).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Vessel investigation: Lakshmi Matha' })).toBeTruthy()
+
+    const officerInput = screen.getByLabelText(/Officer name/)
+    const checkbox = screen.getByLabelText(/I reviewed the evidence/)
+    const signBtn = screen.getByRole('button', { name: 'Record sign-off' })
+
+    reportsApi.sign.mockResolvedValueOnce({ ...sampleReport2, signed_at: '2026-11-03T10:00:00Z', signed_by: 'Officer Rao' })
+    reportsApi.list.mockResolvedValueOnce([sampleReport, { ...sampleReport2, signed_at: '2026-11-03T10:00:00Z', signed_by: 'Officer Rao' }])
+
+    fireEvent.change(officerInput, { target: { value: 'Officer Rao' } })
+    fireEvent.click(checkbox)
+
+    await act(async () => {
+      fireEvent.click(signBtn)
+    })
+
+    expect(reportsApi.sign).toHaveBeenCalledWith(2, 'Officer Rao', true)
   })
 })

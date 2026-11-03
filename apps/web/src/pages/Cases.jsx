@@ -99,7 +99,7 @@ export function EvidencePage() {
         <h2 className="mb-2 mt-5 text-xl">SAR candidates</h2>
         {sarError ? (
           <div>
-            <p className="text-muted">SAR detections didn't load, so a match can't be ruled out.</p>
+            <p role="alert" className="text-muted">SAR detections didn't load, so a match can't be ruled out.</p>
             <button type="button" className="btn btn-primary mt-2" onClick={loadSar}>Try again</button>
           </div>
         ) : !detections ? <p>Loading detections…</p> : detections.filter(d => d.matched_mmsi === detail.mmsi).length ? detections.filter(d => d.matched_mmsi === detail.mmsi).map(d => <p key={d.id} className="border-t border-line py-2">{d.source} · {d.scene_id} · {Math.round(d.match_distance_m)} m from AIS. Candidate match, not confirmed identity.</p>) : <p className="text-muted">No candidate SAR detection recorded for this vessel.</p>}
@@ -120,6 +120,7 @@ export function ReportsPage() {
   const reportNotFound = Boolean(reportId && reports && !selected)
   const refresh = () => reportsApi.list().then(setReports).catch(() => setError('Unable to load reports.'))
   useEffect(() => { refresh() }, [])
+  useEffect(() => { setReviewed(false); setError('') }, [selected?.id])
   async function sign() {
     setError('')
     try {
