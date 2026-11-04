@@ -3,7 +3,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '@/App'
-import { environmentApi, mapApi, sarApi, vesselsApi, weatherApi } from '@/lib/api'
+import { environmentApi, mapApi, reportsApi, sarApi, vesselsApi, weatherApi } from '@/lib/api'
 import { fleet, httpError, networkError, regionalEnvironment, seaPearlDetail } from './fixtures'
 
 // MapLibre needs WebGL, which jsdom doesn't have; the map itself is checked in a browser
@@ -59,6 +59,32 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers())
 
 describe('map page', () => {
+  it('keeps the vessel open when its panel links to the regional value', async () => {
+    environmentApi.regional.mockResolvedValue(regionalEnvironment)
+    await open('/map?vessel=419007431')
+
+    fireEvent.click(screen.getByRole('link', { name: /Regional ocean context/ }))
+    await settle()
+
+    expect(screen.getByRole('complementary', { name: /Sea Pearl II/ })).toBeTruthy()
+  })
+
+  it('does not carry a failed draft report over to the next vessel', async () => {
+    const create = vi.spyOn(reportsApi, 'create').mockRejectedValue(httpError(500))
+    vesselsApi.get.mockImplementation(async (mmsi) => ({ ...seaPearlDetail, mmsi }))
+    await open('/map?vessel=419007431')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Draft report' }))
+    await settle()
+    expect(screen.getByRole('alert').textContent).toContain('Could not create an evidence snapshot')
+
+    fireEvent.click(screen.getByText(/Lakshmi Matha jumped/))
+    await settle()
+
+    expect(screen.queryByText(/Could not create an evidence snapshot/)).toBeNull()
+    create.mockRestore()
+  })
+
   it('lists the vessels that need attention', async () => {
     await open('/map')
 

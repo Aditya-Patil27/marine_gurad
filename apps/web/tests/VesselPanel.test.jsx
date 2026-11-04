@@ -185,7 +185,7 @@ describe('VesselPanel', () => {
 
     const link = screen.getByRole('link', { name: /Regional ocean context \(13 Oct 2026, 11:30 IST\)/ })
     expect(link).toBeTruthy()
-    expect(link.getAttribute('href')).toBe('/map#environmental-context')
+    expect(link.getAttribute('href')).toBe('/map?vessel=419007431#environmental-context')
     expect(link.textContent).not.toMatch(/caused by|because of/i)
   })
 
@@ -194,6 +194,6 @@ describe('VesselPanel', () => {
 
     const link = screen.getByRole('link', { name: /Regional ocean context \(Environmental data not available\)/ })
     expect(link).toBeTruthy()
-    expect(link.getAttribute('href')).toBe('/map#environmental-context')
+    expect(link.getAttribute('href')).toBe('/map?vessel=419007431#environmental-context')
   })
 })

@@ -823,6 +823,45 @@ describe('Cases / EvidencePage & ReportsPage', () => {
     expect(screen.queryByRole('alert')).toBeNull()
   })
 
+  it('records a sign-off that succeeds after the officer opened report #2 on report #1', async () => {
+    let resolveSign
+    reportsApi.list.mockResolvedValue([sampleReport, sampleReport2])
+    reportsApi.sign.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveSign = resolve
+        }),
+    )
+
+    await openReports('/reports?id=1')
+
+    fireEvent.change(screen.getByLabelText(/Officer name/), { target: { value: 'Officer Rao' } })
+    fireEvent.click(screen.getByLabelText(/I reviewed the evidence/))
+    fireEvent.click(screen.getByRole('button', { name: 'Record sign-off' }))
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('link', { name: /#2/ }))
+    })
+
+    reportsApi.list.mockResolvedValue([
+      { ...sampleReport, signed_by: 'Officer Rao', signed_at: '2026-10-13T08:00:00Z' },
+      sampleReport2,
+    ])
+    await act(async () => {
+      resolveSign({})
+    })
+
+    expect(screen.getByText('REPORT #2 · Awaiting review')).toBeTruthy()
+    expect(screen.queryByRole('alert')).toBeNull()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('link', { name: /#1/ }))
+    })
+
+    expect(screen.getByText(/Signed by Officer Rao/)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Record sign-off' })).toBeNull()
+  })
+
   it('shows sign-off rejection that arrives while report #1 is still open (B-16b)', async () => {
     let rejectSign
     reportsApi.list.mockResolvedValue([sampleReport, sampleReport2])

@@ -174,6 +174,7 @@ export default function MapPage() {
 
       {selected && (
         <VesselPanel
+          key={selected}
           detail={current}
           mmsi={selected}
           error={detail.error}
@@ -191,7 +192,7 @@ export default function MapPage() {
         id="environmental-context"
         role="region"
         aria-label="Regional environmental conditions"
-        className="card absolute bottom-5 left-5 z-10 flex items-center gap-2 px-3.5 py-2 text-[12.5px] text-muted"
+        className={`card absolute bottom-5 left-5 z-10 flex max-w-[340px] flex-wrap items-center gap-x-2 px-3.5 py-2 text-[12.5px] text-muted ${current ? 'max-xl:bottom-[106px]' : ''}`}
       >
         {envReading ? (
           <>

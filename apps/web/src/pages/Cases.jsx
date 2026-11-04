@@ -12,6 +12,17 @@ function Page({ title, children }) {
   return <div className="h-full overflow-y-auto p-6 md:p-10"><h1 className="mb-6 text-3xl font-semibold">{title}</h1>{children}</div>
 }
 
+/** The API has no `limitations` field yet (see MASTER_REPORT.md), so the shape is assumed until A's contract exists. */
+function DataLimitations({ items, rule }) {
+  const row = `${rule} border-line py-2 text-muted`
+  if (!Array.isArray(items) || !items.length) return <p className={row}>Data limitations not reported</p>
+  return items.map((lim, i) => (
+    <p className={row} key={lim.key ?? i}>
+      {typeof lim === 'string' ? lim : <>{lim.label && <b className="text-ink">{lim.label}: </b>}{lim.detail}</>}
+    </p>
+  ))
+}
+
 export function AlertsPage() {
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
@@ -69,6 +80,8 @@ export function EvidencePage() {
 
   if (!mmsi) return <Page title="Vessel evidence"><p>Select a vessel from the <Link className="text-navy underline" to="/map">map</Link> or <Link className="text-navy underline" to="/alerts">alert triage</Link>.</p></Page>
 
+  const envReading = formatEnvironmentalReading(regionalEnv)
+
   return <Page title={detail ? vesselName(detail) : 'Vessel evidence'}>
     {reportError && <p role="alert" className="mb-4 text-risk-red">{reportError}</p>}
     {vesselError && (
@@ -86,9 +99,7 @@ export function EvidencePage() {
       </div>
     )}
     {!detail && !vesselError && <p>Loading evidence…</p>}
-    {detail && (() => {
-      const envReading = formatEnvironmentalReading(regionalEnv)
-      return <div className="grid gap-5 lg:grid-cols-2">
+    {detail && <div className="grid gap-5 lg:grid-cols-2">
       <section className={surface}>
         <p className="mb-2 text-muted">MMSI {detail.mmsi} · Last observed {dateTimeIST(detail.last_seen)}</p>
         <p className="mb-2 text-muted">AIS data: {sourceLabel(detail)}</p>
@@ -110,19 +121,7 @@ export function EvidencePage() {
           return <div className="border-t border-line py-3" key={f.key}><b>{withDisplayNames(f.label, names)}</b><span className="num float-right">+{score(f.points)}</span><p className="text-muted">{withDisplayNames(f.detail, names)}</p></div>
         }) : <p>No risk factors found.</p>}
         <h2 className="mb-2 mt-5 text-xl">Data limitations</h2>
-        {detail.limitations && detail.limitations.length > 0 ? (
-          Array.isArray(detail.limitations) ? (
-            detail.limitations.map((lim, i) => (
-              <p className="border-t border-line py-2 text-muted" key={lim.key ?? i}>
-                {typeof lim === 'string' ? lim : (lim.label ? <span><b className="text-ink">{lim.label}:</b> {lim.detail}</span> : (lim.detail ?? JSON.stringify(lim)))}
-              </p>
-            ))
-          ) : (
-            <p className="border-t border-line py-2 text-muted">{String(detail.limitations)}</p>
-          )
-        ) : (
-          <p className="border-t border-line py-2 text-muted">Data limitations not reported</p>
-        )}
+        <DataLimitations items={detail.limitations} rule="border-t" />
         <h2 className="mb-2 mt-5 text-xl">Checks</h2>
         {detail.checks && detail.checks.length > 0 ? (
           detail.checks.map(c => <p className="border-t border-line py-2" key={c.key}><b>{c.label}:</b> {c.detail}</p>)
@@ -145,7 +144,7 @@ export function EvidencePage() {
         ) : !detections ? <p>Loading detections…</p> : detections.filter(d => d.matched_mmsi === detail.mmsi).length ? detections.filter(d => d.matched_mmsi === detail.mmsi).map(d => <p key={d.id} className="border-t border-line py-2">{d.source} · {d.scene_id} · {Math.round(d.match_distance_m)} m from AIS · SAR data: {modeLabel(d)}. Candidate match, not confirmed identity.</p>) : <p className="text-muted">No candidate SAR detection recorded for this vessel.</p>}
         <div className="mt-5 flex flex-wrap gap-3"><Link className="btn" to={`/map?vessel=${detail.mmsi}`}>View track on map</Link><button className="btn btn-primary" onClick={createReport}>Create report snapshot</button></div>
       </section>
-    </div>})()}
+    </div>}
   </Page>
 }
 
@@ -168,7 +167,7 @@ export function ReportsPage() {
     setError('')
     try {
       await reportsApi.sign(signingId, officer, reviewed)
-      if (selectedIdRef.current !== signingId) return
+      // The list must learn of the signature even if another report is open by now
       await refresh()
       if (selectedIdRef.current !== signingId) return
       setReviewed(false)
@@ -216,19 +215,7 @@ export function ReportsPage() {
               <p className="border-b border-line py-2 text-muted">Checks not reported</p>
             )}
             <h3 className="mb-2 mt-6 text-lg">Data limitations</h3>
-            {selected.snapshot.limitations && selected.snapshot.limitations.length > 0 ? (
-              Array.isArray(selected.snapshot.limitations) ? (
-                selected.snapshot.limitations.map((lim, i) => (
-                  <div key={lim.key ?? i} className="border-b border-line py-2 text-muted">
-                    {typeof lim === 'string' ? lim : (lim.label ? <span><b className="text-ink">{lim.label}:</b> {lim.detail}</span> : (lim.detail ?? JSON.stringify(lim)))}
-                  </div>
-                ))
-              ) : (
-                <p className="border-b border-line py-2 text-muted">{String(selected.snapshot.limitations)}</p>
-              )
-            ) : (
-              <p className="border-b border-line py-2 text-muted">Data limitations not reported</p>
-            )}
+            <DataLimitations items={selected.snapshot.limitations} rule="border-b" />
             <p className="mt-4 text-muted">AIS gaps and encounters are indicators, not proof of an offence.</p>
             <details className="mt-4"><summary>View source snapshot ({plural(selected.snapshot.track.length, 'AIS position', 'AIS positions')})</summary><pre className="mt-2 max-h-64 overflow-auto text-xs">{JSON.stringify(selected.snapshot, null, 2)}</pre></details>
           </article>

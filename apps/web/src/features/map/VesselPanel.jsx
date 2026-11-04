@@ -113,11 +113,11 @@ export default function VesselPanel({ detail, mmsi, error, loading, onClose, onR
           <div className="text-[13px] text-faint">AIS data: {sourceLabel(detail)}</div>
           <div className="text-[13px] text-faint">
             {envReading ? (
-              <Link to="/map#environmental-context" className="text-navy hover:underline">
+              <Link to={`/map?vessel=${detail.mmsi}#environmental-context`} className="text-navy hover:underline">
                 Regional ocean context ({envReading.dateIST})
               </Link>
             ) : (
-              <Link to="/map#environmental-context" className="text-muted hover:underline">
+              <Link to={`/map?vessel=${detail.mmsi}#environmental-context`} className="text-muted hover:underline">
                 Regional ocean context (Environmental data not available)
               </Link>
             )}
