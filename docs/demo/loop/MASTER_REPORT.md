@@ -114,3 +114,21 @@ Two assertions in `VesselPanel.test.jsx`, on purpose: the B-08 link is now `/map
 
 ### Not checked
 The real API stack and Docker.
+
+## API keys, 2026-11-04
+Values are only in git-ignored `.env` files on owner B's machine: the repo root and `apps/api/.env`. The API and Docker read `apps/api/.env`.
+
+| Service | Key | Tested | Used by the API |
+|---|---|---|---|
+| Global Fishing Watch | In place, commented out in `apps/api/.env` | Yes: a vessel search returned 200 | No: not in `config.py`, and no adapter |
+| Gemini | In place | Yes: listing models returned 200. The chatbot was not run | Read by `config.py` |
+| AISStream | In place, commented out | No | No |
+| Global Forest Watch | In place, commented out | No | No, and not in the plan. It does not replace Global Fishing Watch |
+| Copernicus Marine | In the root `.env` only, as a username and password | No | No: `config.py` expects `COPERNICUS_CLIENT_ID` and `COPERNICUS_CLIENT_SECRET` |
+| Supabase and `DATABASE_URL` | Not copied: the URLs in the root `.env` still hold template text | No | Needs real values. The key names also differ from `config.py` |
+
+For owner A:
+- An undeclared key in the loaded `.env` stops the API from starting, so the commented keys stay commented until `config.py` declares them.
+- A Global Fishing Watch client exists in the reefcase project (`src/reefcase/tools/vessels.py`). It returns grid cells and counts, not individual vessels.
+
+The API has not been run with these keys.
