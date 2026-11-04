@@ -3,8 +3,8 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '@/App'
-import { mapApi, sarApi, vesselsApi, weatherApi } from '@/lib/api'
-import { fleet, httpError, networkError, seaPearlDetail } from './fixtures'
+import { environmentApi, mapApi, sarApi, vesselsApi, weatherApi } from '@/lib/api'
+import { fleet, httpError, networkError, regionalEnvironment, seaPearlDetail } from './fixtures'
 
 // MapLibre needs WebGL, which jsdom doesn't have; the map itself is checked in a browser
 vi.mock('@/features/map/OceanMap', () => ({ default: () => null }))
@@ -14,6 +14,7 @@ vi.mock('@/lib/api', async (original) => ({
   mapApi: { zones: vi.fn() },
   weatherApi: { vessel: vi.fn() },
   sarApi: { detections: vi.fn() },
+  environmentApi: { regional: vi.fn() },
 }))
 
 const ZONES = { type: 'FeatureCollection', features: [] }
@@ -52,6 +53,7 @@ beforeEach(() => {
   mapApi.zones.mockReset().mockResolvedValue(ZONES)
   weatherApi.vessel.mockReset().mockResolvedValue({ status: 'unavailable', reason: 'Weather service unavailable.' })
   sarApi.detections.mockReset().mockResolvedValue([])
+  environmentApi.regional.mockReset().mockRejectedValue(new Error('Endpoint not available'))
 })
 
 afterEach(() => vi.useRealTimers())
@@ -327,6 +329,29 @@ describe('map page', () => {
       await settle(30000)
       expect(dot().className).toContain('bg-risk-red')
       expect(dot().className).not.toContain('bg-faint')
+    })
+  })
+
+  describe('regional environmental value (B-07)', () => {
+    it('shows environmental data not available when endpoint fails or has no data', async () => {
+      environmentApi.regional.mockRejectedValue(new Error('404 Not Found'))
+      await open('/map')
+
+      const envBox = screen.getByRole('region', { name: 'Regional environmental conditions' })
+      expect(envBox.textContent).toContain('Environmental data not available')
+      expect(envBox.textContent).not.toContain('29.4')
+    })
+
+    it('shows value, unit, date with labelled timezone, and attribution from regional environment fixture', async () => {
+      environmentApi.regional.mockResolvedValue(regionalEnvironment)
+      await open('/map')
+
+      const envBox = screen.getByRole('region', { name: 'Regional environmental conditions' })
+      expect(envBox.textContent).toContain('29.4')
+      expect(envBox.textContent).toContain('°C')
+      expect(envBox.textContent).toContain('13 Oct 2026, 11:30 IST')
+      expect(envBox.textContent).toContain('Copernicus Marine Service')
+      expect(envBox.textContent).not.toContain('Environmental data not available')
     })
   })
 })

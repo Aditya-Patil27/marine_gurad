@@ -127,3 +127,11 @@ export const httpError = (status) => Object.assign(new Error(`Request failed wit
 
 /** Shaped like the axios error when nothing answers. */
 export const networkError = () => Object.assign(new Error('Network Error'), { code: 'ERR_NETWORK' })
+
+export const regionalEnvironment = {
+  variable: 'Sea surface temperature',
+  value: 29.4,
+  unit: '°C',
+  observed_at: '2026-10-13T06:00:00Z',
+  attribution: 'Copernicus Marine Service',
+}

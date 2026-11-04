@@ -35,4 +35,8 @@ export const sarApi = {
   detections: () => api.get('/sar/detections').then((r) => r.data),
 }
 
+export const environmentApi = {
+  regional: () => api.get('/environment/regional').then((r) => r.data),
+}
+
 export default api

@@ -6,9 +6,10 @@ import AttentionCard from '../features/map/AttentionCard'
 import VesselPanel from '../features/map/VesselPanel'
 import TrackTimeline from '../features/map/TrackTimeline'
 import StateGlyph, { STATE_STYLE } from '../components/StateGlyph'
-import { mapApi, vesselsApi } from '../lib/api'
+import { environmentApi, mapApi, vesselsApi } from '../lib/api'
 import usePolling from '../lib/usePolling'
 import useOnline from '../lib/useOnline'
+import { formatEnvironmentalReading } from '../lib/environment'
 import { sourceLabel, timeIST, vesselName } from '../lib/format'
 
 /** The address bar is typed by people: only a whole number of up to nine digits is an MMSI. */
@@ -111,6 +112,7 @@ export default function MapPage() {
 
   const zones = usePolling(() => mapApi.zones(), 10 * 60e3)
   const detail = usePolling(selected ? () => vesselsApi.get(selected) : null, 30e3, [selected])
+  const regionalEnv = usePolling(() => environmentApi.regional(), 10 * 60e3)
 
   const select = useCallback(
     (mmsi) => {
@@ -124,6 +126,7 @@ export default function MapPage() {
   const attention = useMemo(() => vessels.filter((v) => v.level !== 'low'), [vessels])
   const current = detail.data?.mmsi === selected ? detail.data : null
   const updated = fleet.updatedAt && timeIST(fleet.updatedAt)
+  const envReading = formatEnvironmentalReading(regionalEnv.data)
 
   return (
     <div className="absolute inset-0 overflow-hidden">
@@ -182,6 +185,25 @@ export default function MapPage() {
       )}
 
       {current && <TrackTimeline detail={current} />}
+
+      <div
+        id="environmental-context"
+        role="region"
+        aria-label="Regional environmental conditions"
+        className="card absolute bottom-5 left-5 z-10 flex items-center gap-2 px-3.5 py-2 text-[12.5px] text-muted"
+      >
+        {envReading ? (
+          <>
+            <span className="font-medium text-ink">{envReading.variable}: {envReading.value} {envReading.unit}</span>
+            <span aria-hidden="true">·</span>
+            <span>{envReading.dateIST}</span>
+            <span aria-hidden="true">·</span>
+            <span>{envReading.attribution}</span>
+          </>
+        ) : (
+          <span>Environmental data not available</span>
+        )}
+      </div>
 
       <div className={`card absolute bottom-[112px] z-10 flex gap-3.5 px-3 py-2 text-[12.5px] text-muted ${selected ? 'right-[440px]' : 'right-5'}`}>
         {Object.entries(STATE_STYLE).map(([state, { label }]) => (
