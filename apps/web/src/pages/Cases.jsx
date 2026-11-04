@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { vesselsApi, reportsApi, weatherApi, sarApi, isNotFound } from '../lib/api'
+import { vesselsApi, reportsApi, weatherApi, sarApi, environmentApi, isNotFound } from '../lib/api'
+import { formatEnvironmentalReading } from '../lib/environment'
 import { dateTimeIST, hoursLabel, modeLabel, score, sourceLabel, vesselName, withDisplayNames } from '../lib/format'
 
 const plural = (n, singular, pluralForm) => `${n} ${n === 1 ? singular : pluralForm}`
@@ -37,6 +38,7 @@ export function EvidencePage() {
   const [sarError, setSarError] = useState(false)
   const [weather, setWeather] = useState(null)
   const [detections, setDetections] = useState(null)
+  const [regionalEnv, setRegionalEnv] = useState(null)
   const navigate = useNavigate()
 
   const loadVessel = () => {
@@ -57,6 +59,7 @@ export function EvidencePage() {
     loadVessel()
     weatherApi.vessel(mmsi).then(setWeather).catch(() => setWeather({ status: 'unavailable', reason: 'Weather service unavailable.' }))
     loadSar()
+    environmentApi.regional().then(setRegionalEnv).catch(() => setRegionalEnv(null))
   }, [mmsi])
 
   async function createReport() {
@@ -83,10 +86,23 @@ export function EvidencePage() {
       </div>
     )}
     {!detail && !vesselError && <p>Loading evidence…</p>}
-    {detail && <div className="grid gap-5 lg:grid-cols-2">
+    {detail && (() => {
+      const envReading = formatEnvironmentalReading(regionalEnv)
+      return <div className="grid gap-5 lg:grid-cols-2">
       <section className={surface}>
         <p className="mb-2 text-muted">MMSI {detail.mmsi} · Last observed {dateTimeIST(detail.last_seen)}</p>
         <p className="mb-2 text-muted">AIS data: {sourceLabel(detail)}</p>
+        <p className="mb-2 text-muted">
+          {envReading ? (
+            <Link to="/map#environmental-context" className="text-navy underline">
+              Regional ocean context ({envReading.dateIST})
+            </Link>
+          ) : (
+            <Link to="/map#environmental-context" className="text-muted underline">
+              Regional ocean context (Environmental data not available)
+            </Link>
+          )}
+        </p>
         <p className="mb-4 text-3xl font-semibold text-navy">{score(detail.score)} <span className="text-base font-normal text-muted">risk score</span></p>
         <h2 className="mb-2 text-xl">Why it was flagged</h2>
         {detail.factors.length ? detail.factors.map(f => {
@@ -111,7 +127,7 @@ export function EvidencePage() {
         ) : !detections ? <p>Loading detections…</p> : detections.filter(d => d.matched_mmsi === detail.mmsi).length ? detections.filter(d => d.matched_mmsi === detail.mmsi).map(d => <p key={d.id} className="border-t border-line py-2">{d.source} · {d.scene_id} · {Math.round(d.match_distance_m)} m from AIS · SAR data: {modeLabel(d)}. Candidate match, not confirmed identity.</p>) : <p className="text-muted">No candidate SAR detection recorded for this vessel.</p>}
         <div className="mt-5 flex flex-wrap gap-3"><Link className="btn" to={`/map?vessel=${detail.mmsi}`}>View track on map</Link><button className="btn btn-primary" onClick={createReport}>Create report snapshot</button></div>
       </section>
-    </div>}
+    </div>})()}
   </Page>
 }
 

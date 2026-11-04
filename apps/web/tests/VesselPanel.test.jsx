@@ -3,7 +3,7 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 import VesselPanel from '@/features/map/VesselPanel'
 import { reportsApi } from '@/lib/api'
-import { fleet, httpError, networkError, seaPearlDetail } from './fixtures'
+import { fleet, httpError, networkError, regionalEnvironment, seaPearlDetail } from './fixtures'
 
 vi.mock('@/lib/api', async (importOriginal) => {
   const actual = await importOriginal()
@@ -178,5 +178,22 @@ describe('VesselPanel', () => {
     expect(screen.queryByTestId('reports-page')).toBeNull()
     expect(screen.getByRole('alert').textContent).toContain('Could not create an evidence snapshot')
     expect(screen.getByRole('link', { name: 'Open evidence' })).toBeTruthy()
+  })
+
+  it('links to environmental value with date and context-only wording (B-08)', () => {
+    show({ detail: seaPearlDetail, environmental: regionalEnvironment })
+
+    const link = screen.getByRole('link', { name: /Regional ocean context \(13 Oct 2026, 11:30 IST\)/ })
+    expect(link).toBeTruthy()
+    expect(link.getAttribute('href')).toBe('/map#environmental-context')
+    expect(link.textContent).not.toMatch(/caused by|because of/i)
+  })
+
+  it('shows fallback link when environmental data is unavailable (B-08)', () => {
+    show({ detail: seaPearlDetail, environmental: null })
+
+    const link = screen.getByRole('link', { name: /Regional ocean context \(Environmental data not available\)/ })
+    expect(link).toBeTruthy()
+    expect(link.getAttribute('href')).toBe('/map#environmental-context')
   })
 })

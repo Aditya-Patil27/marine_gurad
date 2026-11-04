@@ -2,8 +2,8 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AlertsPage, EvidencePage, ReportsPage } from '@/pages/Cases'
-import { reportsApi, sarApi, vesselsApi, weatherApi } from '@/lib/api'
-import { fleet, httpError, networkError, seaPearlDetail } from './fixtures'
+import { environmentApi, reportsApi, sarApi, vesselsApi, weatherApi } from '@/lib/api'
+import { fleet, httpError, networkError, regionalEnvironment, seaPearlDetail } from './fixtures'
 
 vi.mock('@/lib/api', async (original) => ({
   ...(await original()),
@@ -11,6 +11,7 @@ vi.mock('@/lib/api', async (original) => ({
   reportsApi: { list: vi.fn(), create: vi.fn(), sign: vi.fn() },
   weatherApi: { vessel: vi.fn() },
   sarApi: { detections: vi.fn() },
+  environmentApi: { regional: vi.fn() },
 }))
 
 const sampleReport = {
@@ -70,6 +71,7 @@ beforeEach(() => {
   vi.resetAllMocks()
   weatherApi.vessel.mockResolvedValue({ status: 'unavailable', reason: 'Weather service unavailable.' })
   sarApi.detections.mockResolvedValue([])
+  environmentApi.regional.mockResolvedValue(regionalEnvironment)
 })
 
 describe('Cases / EvidencePage & ReportsPage', () => {
@@ -886,5 +888,26 @@ describe('Cases / EvidencePage & ReportsPage', () => {
     expect(reportFactorRow.textContent).not.toContain('HAI FENG 818')
     const pre = document.querySelector('pre')
     expect(pre.textContent).toContain('HAI FENG 818')
+  })
+
+  it('links to environmental value on evidence with date and context-only wording (B-08)', async () => {
+    vesselsApi.get.mockResolvedValue(seaPearlDetail)
+    environmentApi.regional.mockResolvedValue(regionalEnvironment)
+    await openEvidence('419007431')
+
+    const link = screen.getByRole('link', { name: /Regional ocean context \(13 Oct 2026, 11:30 IST\)/ })
+    expect(link).toBeTruthy()
+    expect(link.getAttribute('href')).toBe('/map#environmental-context')
+    expect(link.textContent).not.toMatch(/caused by|because of/i)
+  })
+
+  it('shows fallback link when environmental data is unavailable on evidence (B-08)', async () => {
+    vesselsApi.get.mockResolvedValue(seaPearlDetail)
+    environmentApi.regional.mockRejectedValue(new Error('Network error'))
+    await openEvidence('419007431')
+
+    const link = screen.getByRole('link', { name: /Regional ocean context \(Environmental data not available\)/ })
+    expect(link).toBeTruthy()
+    expect(link.getAttribute('href')).toBe('/map#environmental-context')
   })
 })

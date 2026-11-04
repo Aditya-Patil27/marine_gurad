@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { CircleAlert, CircleCheck, CircleHelp, CircleMinus, X } from 'lucide-react'
 import { isNotFound, reportsApi } from '../../lib/api'
+import { formatEnvironmentalReading } from '../../lib/environment'
 import { CLEARS, dateTimeIST, levelStyle, score, sourceLabel, vesselName, vesselType, withDisplayNames } from '../../lib/format'
 
 const CHECK_ICON = {
@@ -40,7 +41,7 @@ function ClearIf({ clearIf }) {
   )
 }
 
-export default function VesselPanel({ detail, mmsi, error, loading, onClose, onRetry, names }) {
+export default function VesselPanel({ detail, mmsi, error, loading, onClose, onRetry, names, environmental }) {
   const [drafting, setDrafting] = useState(false)
   const [draftError, setDraftError] = useState('')
   const navigate = useNavigate()
@@ -85,6 +86,7 @@ export default function VesselPanel({ detail, mmsi, error, loading, onClose, onR
   const level = levelStyle(detail.level)
   const scale = Math.max(...Object.values(detail.max_points))
   const meta = [vesselType(detail.vessel_type), detail.length && `${detail.length} m`].filter(Boolean).join(' · ')
+  const envReading = formatEnvironmentalReading(environmental)
 
   return (
     <aside className="card absolute right-5 top-[76px] z-10 flex max-h-[calc(100%-96px)] w-[400px] flex-col overflow-hidden" aria-labelledby="vessel-title">
@@ -109,6 +111,17 @@ export default function VesselPanel({ detail, mmsi, error, loading, onClose, onR
           </div>
           <div className="text-[13px] text-faint">Last position {dateTimeIST(detail.last_seen)}</div>
           <div className="text-[13px] text-faint">AIS data: {sourceLabel(detail)}</div>
+          <div className="text-[13px] text-faint">
+            {envReading ? (
+              <Link to="/map#environmental-context" className="text-navy hover:underline">
+                Regional ocean context ({envReading.dateIST})
+              </Link>
+            ) : (
+              <Link to="/map#environmental-context" className="text-muted hover:underline">
+                Regional ocean context (Environmental data not available)
+              </Link>
+            )}
+          </div>
         </div>
 
         <div className="flex items-center gap-3 border-t border-line px-5 pb-1.5 pt-3.5">

@@ -181,6 +181,7 @@ export default function MapPage() {
           onClose={() => select(null)}
           onRetry={detail.refresh}
           names={vessels}
+          environmental={regionalEnv.data}
         />
       )}
 
