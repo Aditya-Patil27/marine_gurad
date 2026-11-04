@@ -109,8 +109,26 @@ export function EvidencePage() {
           const names = [detail, ...(detail.encounters ?? [])]
           return <div className="border-t border-line py-3" key={f.key}><b>{withDisplayNames(f.label, names)}</b><span className="num float-right">+{score(f.points)}</span><p className="text-muted">{withDisplayNames(f.detail, names)}</p></div>
         }) : <p>No risk factors found.</p>}
+        <h2 className="mb-2 mt-5 text-xl">Data limitations</h2>
+        {detail.limitations && detail.limitations.length > 0 ? (
+          Array.isArray(detail.limitations) ? (
+            detail.limitations.map((lim, i) => (
+              <p className="border-t border-line py-2 text-muted" key={lim.key ?? i}>
+                {typeof lim === 'string' ? lim : (lim.label ? <span><b className="text-ink">{lim.label}:</b> {lim.detail}</span> : (lim.detail ?? JSON.stringify(lim)))}
+              </p>
+            ))
+          ) : (
+            <p className="border-t border-line py-2 text-muted">{String(detail.limitations)}</p>
+          )
+        ) : (
+          <p className="border-t border-line py-2 text-muted">Data limitations not reported</p>
+        )}
         <h2 className="mb-2 mt-5 text-xl">Checks</h2>
-        {detail.checks.map(c => <p className="border-t border-line py-2" key={c.key}><b>{c.label}:</b> {c.detail}</p>)}
+        {detail.checks && detail.checks.length > 0 ? (
+          detail.checks.map(c => <p className="border-t border-line py-2" key={c.key}><b>{c.label}:</b> {c.detail}</p>)
+        ) : (
+          <p className="border-t border-line py-2 text-muted">Checks not reported</p>
+        )}
         <div className="mt-3 border-t border-line pt-3"><b>Weather at AIS gap:</b> {!weather ? 'Checking…' : weather.status === 'available' ? `${weather.wind_kn} kn wind, ${weather.wave_m} m waves at ${dateTimeIST(weather.time_utc)}. ${weather.source ? `Source: ${weather.source}` : 'Source not reported'} · Weather data: ${modeLabel(weather)}${weather.note ? ` · ${weather.note}` : ''}` : weather.reason}</div>
         <p className="mt-4 text-muted">AIS gaps and encounters are indicators, not proof of an offence.</p>
       </section>
@@ -187,6 +205,31 @@ export function ReportsPage() {
               return <div key={f.key} className="border-b border-line py-3"><b>{withDisplayNames(f.label, names)}</b> · {withDisplayNames(f.detail, names)} · +{score(f.points)}</div>
             })}
             {selected.snapshot.sar_candidates?.map(d => <div key={d.id} className="border-b border-line py-3"><b>SAR candidate:</b> {d.source} · scene {d.scene_id} · {dateTimeIST(d.observed_at)} · {Math.round(d.match_distance_m)} m from AIS · SAR data: {modeLabel(d)}. Identity not confirmed.</div>)}
+            <h3 className="mb-2 mt-6 text-lg">Checks</h3>
+            {selected.snapshot.checks && selected.snapshot.checks.length > 0 ? (
+              selected.snapshot.checks.map(c => (
+                <div key={c.key} className="border-b border-line py-2">
+                  <b>{c.label}:</b> {c.detail}
+                </div>
+              ))
+            ) : (
+              <p className="border-b border-line py-2 text-muted">Checks not reported</p>
+            )}
+            <h3 className="mb-2 mt-6 text-lg">Data limitations</h3>
+            {selected.snapshot.limitations && selected.snapshot.limitations.length > 0 ? (
+              Array.isArray(selected.snapshot.limitations) ? (
+                selected.snapshot.limitations.map((lim, i) => (
+                  <div key={lim.key ?? i} className="border-b border-line py-2 text-muted">
+                    {typeof lim === 'string' ? lim : (lim.label ? <span><b className="text-ink">{lim.label}:</b> {lim.detail}</span> : (lim.detail ?? JSON.stringify(lim)))}
+                  </div>
+                ))
+              ) : (
+                <p className="border-b border-line py-2 text-muted">{String(selected.snapshot.limitations)}</p>
+              )
+            ) : (
+              <p className="border-b border-line py-2 text-muted">Data limitations not reported</p>
+            )}
+            <p className="mt-4 text-muted">AIS gaps and encounters are indicators, not proof of an offence.</p>
             <details className="mt-4"><summary>View source snapshot ({plural(selected.snapshot.track.length, 'AIS position', 'AIS positions')})</summary><pre className="mt-2 max-h-64 overflow-auto text-xs">{JSON.stringify(selected.snapshot, null, 2)}</pre></details>
           </article>
           <aside className={surface}><h2 className="text-xl">Evidence integrity</h2><p className="mt-2">{selected.integrity_ok ? 'Snapshot hash verified' : 'Hash mismatch — sign-off blocked'}</p><p className="mt-2 text-xs text-muted">The hash detects accidental changes; it is stored alongside the evidence and is not a digital signature.</p><p className="num mt-2 break-all text-xs text-muted">SHA-256 {selected.sha256}</p>

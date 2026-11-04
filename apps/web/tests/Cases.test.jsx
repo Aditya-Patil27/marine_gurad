@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AlertsPage, EvidencePage, ReportsPage } from '@/pages/Cases'
@@ -909,5 +909,79 @@ describe('Cases / EvidencePage & ReportsPage', () => {
     const link = screen.getByRole('link', { name: /Regional ocean context \(Environmental data not available\)/ })
     expect(link).toBeTruthy()
     expect(link.getAttribute('href')).toBe('/map#environmental-context')
+  })
+
+  it('shows data limitations beside rule factors on evidence (B-09)', async () => {
+    vesselsApi.get.mockResolvedValue({
+      ...seaPearlDetail,
+      limitations: [{ key: 'radar', label: 'Radar gap', detail: 'No coastal radar coverage past 25 km' }],
+    })
+    await openEvidence('419007431')
+    expect(screen.getByRole('heading', { name: 'Data limitations' })).toBeTruthy()
+    expect(screen.getByText(/Radar gap:/)).toBeTruthy()
+    expect(screen.getByText(/No coastal radar coverage past 25 km/)).toBeTruthy()
+  })
+
+  it('shows data limitations not reported on evidence when limitations are missing (B-09)', async () => {
+    vesselsApi.get.mockResolvedValue({
+      ...seaPearlDetail,
+      limitations: undefined,
+    })
+    await openEvidence('419007431')
+    expect(screen.getByRole('heading', { name: 'Data limitations' })).toBeTruthy()
+    expect(screen.getByText('Data limitations not reported')).toBeTruthy()
+  })
+
+  it('draws evidence without crashing and says checks not reported when checks are missing (B-09)', async () => {
+    const detailWithoutChecks = { ...seaPearlDetail }
+    delete detailWithoutChecks.checks
+    vesselsApi.get.mockResolvedValue(detailWithoutChecks)
+    await openEvidence('419007431')
+    expect(screen.getByText('Checks not reported')).toBeTruthy()
+  })
+
+  it('shows checks and indicators line on report view (B-09)', async () => {
+    reportsApi.list.mockResolvedValue([sampleReport])
+    await openReports('/reports?id=1')
+    const article = document.querySelector('article')
+    expect(article).toBeTruthy()
+    expect(within(article).getByRole('heading', { name: 'Checks' })).toBeTruthy()
+    expect(within(article).getByText('AIS receiver outage:')).toBeTruthy()
+    expect(within(article).getAllByText(/9 other vessels within 50 km kept reporting/).length).toBeGreaterThanOrEqual(1)
+    expect(within(article).getByText('AIS gaps and encounters are indicators, not proof of an offence.')).toBeTruthy()
+  })
+
+  it('shows data limitations on report view when present (B-09)', async () => {
+    reportsApi.list.mockResolvedValue([
+      {
+        ...sampleReport,
+        snapshot: {
+          ...seaPearlDetail,
+          limitations: [{ key: 'ais_range', label: 'AIS range', detail: 'Shore receiver coverage drops beyond 40 km' }],
+        },
+      },
+    ])
+    await openReports('/reports?id=1')
+    const article = document.querySelector('article')
+    expect(article).toBeTruthy()
+    expect(within(article).getByRole('heading', { name: 'Data limitations' })).toBeTruthy()
+    expect(within(article).getByText('AIS range:')).toBeTruthy()
+    expect(within(article).getAllByText(/Shore receiver coverage drops beyond 40 km/).length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('draws older report snapshot with no checks and no limitations saying they are not reported (B-09)', async () => {
+    const olderSnapshot = { ...seaPearlDetail }
+    delete olderSnapshot.checks
+    delete olderSnapshot.limitations
+    reportsApi.list.mockResolvedValue([
+      {
+        ...sampleReport,
+        snapshot: olderSnapshot,
+      },
+    ])
+    await openReports('/reports?id=1')
+    expect(screen.getByText('Checks not reported')).toBeTruthy()
+    expect(screen.getByText('Data limitations not reported')).toBeTruthy()
+    expect(screen.getByText('AIS gaps and encounters are indicators, not proof of an offence.')).toBeTruthy()
   })
 })
