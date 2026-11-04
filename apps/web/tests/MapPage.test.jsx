@@ -303,5 +303,30 @@ describe('map page', () => {
       expect(dot().className).toContain('bg-faint')
       expect(dot().className).not.toContain('bg-risk-green')
     })
+
+    it('renders green dot online with live data, grey dot offline with live data, and red dot offline with fleet.error (B-16b)', async () => {
+      const liveFleet = { ...fleet, data_mode: 'live' }
+      const onlineSpy = vi.spyOn(window.navigator, 'onLine', 'get').mockReturnValue(true)
+      vesselsApi.list.mockResolvedValue(liveFleet)
+      await open('/map')
+
+      // 1. Online with live data: green
+      expect(dot().className).toContain('bg-risk-green')
+      expect(dot().className).not.toContain('bg-faint')
+
+      // 2. Offline with live data: grey (bg-faint)
+      onlineSpy.mockReturnValue(false)
+      act(() => {
+        window.dispatchEvent(new Event('offline'))
+      })
+      expect(dot().className).toContain('bg-faint')
+      expect(dot().className).not.toContain('bg-risk-green')
+
+      // 3. Offline with fleet.error: red (bg-risk-red)
+      vesselsApi.list.mockRejectedValue(networkError())
+      await settle(30000)
+      expect(dot().className).toContain('bg-risk-red')
+      expect(dot().className).not.toContain('bg-faint')
+    })
   })
 })

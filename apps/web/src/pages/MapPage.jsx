@@ -8,6 +8,7 @@ import TrackTimeline from '../features/map/TrackTimeline'
 import StateGlyph, { STATE_STYLE } from '../components/StateGlyph'
 import { mapApi, vesselsApi } from '../lib/api'
 import usePolling from '../lib/usePolling'
+import useOnline from '../lib/useOnline'
 import { sourceLabel, timeIST, vesselName } from '../lib/format'
 
 /** The address bar is typed by people: only a whole number of up to nine digits is an MMSI. */
@@ -101,6 +102,7 @@ function Toggle({ on, onChange, children }) {
 
 export default function MapPage() {
   const fleet = useOutletContext()
+  const isOnline = useOnline()
   const [params, setParams] = useSearchParams()
   const selected = mmsiFrom(params.get('vessel'))
   const openedOn = useRef(selected).current
@@ -147,7 +149,7 @@ export default function MapPage() {
           All vessels
         </Toggle>
         <span className="card ml-auto flex h-9 items-center gap-2 px-3.5 text-[13px] text-muted" role="status">
-          <span className={`h-2 w-2 rounded-full ${fleet.error ? 'bg-risk-red' : sourceLabel(fleet.data) === 'Live data' ? 'bg-risk-green' : 'bg-faint'}`} aria-hidden="true" />
+          <span className={`h-2 w-2 rounded-full ${fleet.error ? 'bg-risk-red' : !isOnline ? 'bg-faint' : sourceLabel(fleet.data) === 'Live data' ? 'bg-risk-green' : 'bg-faint'}`} aria-hidden="true" />
           {fleet.error
             ? `Can't reach the API${updated ? ` · last update ${updated}` : ''}`
             : updated

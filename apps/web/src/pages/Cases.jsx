@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { vesselsApi, reportsApi, weatherApi, sarApi, isNotFound } from '../lib/api'
 import { dateTimeIST, hoursLabel, modeLabel, score, sourceLabel, vesselName, withDisplayNames } from '../lib/format'
@@ -123,17 +123,23 @@ export function ReportsPage() {
   const [error, setError] = useState('')
   const reportId = params.get('id')
   const selected = reportId ? reports?.find(r => String(r.id) === reportId) : reports?.[0]
+  const selectedIdRef = useRef(selected?.id)
+  selectedIdRef.current = selected?.id
   const reportNotFound = Boolean(reportId && reports && !selected)
   const refresh = () => reportsApi.list().then(setReports).catch(() => setError('Unable to load reports.'))
   useEffect(() => { refresh() }, [])
   useEffect(() => { setReviewed(false); setError('') }, [selected?.id])
   async function sign() {
+    const signingId = selected?.id
     setError('')
     try {
-      await reportsApi.sign(selected.id, officer, reviewed)
+      await reportsApi.sign(signingId, officer, reviewed)
+      if (selectedIdRef.current !== signingId) return
       await refresh()
+      if (selectedIdRef.current !== signingId) return
       setReviewed(false)
     } catch (e) {
+      if (selectedIdRef.current !== signingId) return
       const detail = e.response?.data?.detail
       if (typeof detail === 'string') {
         setError(detail)

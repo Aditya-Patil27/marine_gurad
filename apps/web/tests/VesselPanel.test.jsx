@@ -1,25 +1,54 @@
-import { fireEvent, render, screen } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
-import { describe, expect, it } from 'vitest'
+import { act, fireEvent, render, screen } from '@testing-library/react'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
+import { describe, expect, it, vi } from 'vitest'
 import VesselPanel from '@/features/map/VesselPanel'
+import { reportsApi } from '@/lib/api'
 import { fleet, httpError, networkError, seaPearlDetail } from './fixtures'
 
-function show(props) {
+vi.mock('@/lib/api', async (importOriginal) => {
+  const actual = await importOriginal()
+  return {
+    ...actual,
+    reportsApi: {
+      ...actual.reportsApi,
+      create: vi.fn(),
+    },
+  }
+})
+
+function show(props, initialEntries = ['/']) {
   const calls = { closed: 0, retried: 0 }
+  let currentPath = ''
+  function PathWatcher() {
+    const loc = useLocation()
+    currentPath = loc.pathname + loc.search
+    return null
+  }
   render(
-    <MemoryRouter>
-      <VesselPanel
-        detail={null}
-        mmsi={419007431}
-        error={null}
-        loading={false}
-        onClose={() => (calls.closed += 1)}
-        onRetry={() => (calls.retried += 1)}
-        names={fleet.vessels}
-        {...props}
-      />
+    <MemoryRouter initialEntries={initialEntries}>
+      <PathWatcher />
+      <Routes>
+        <Route path="/reports" element={<div data-testid="reports-page">Reports page</div>} />
+        <Route path="/vessels/:mmsi" element={<div data-testid="evidence-page">Evidence page</div>} />
+        <Route
+          path="*"
+          element={
+            <VesselPanel
+              detail={null}
+              mmsi={419007431}
+              error={null}
+              loading={false}
+              onClose={() => (calls.closed += 1)}
+              onRetry={() => (calls.retried += 1)}
+              names={fleet.vessels}
+              {...props}
+            />
+          }
+        />
+      </Routes>
     </MemoryRouter>,
   )
+  calls.getPath = () => currentPath
   return calls
 }
 
@@ -108,5 +137,46 @@ describe('VesselPanel', () => {
     const panel = screen.getByRole('complementary')
     expect(panel.textContent).toContain('Last position 13 Oct 2026, 12:10 IST')
     expect(panel.textContent).not.toContain('IST IST')
+  })
+
+  it('calls create once on a double click and navigates to the new ID', async () => {
+    let resolveCreate
+    reportsApi.create.mockReturnValue(
+      new Promise((resolve) => {
+        resolveCreate = resolve
+      }),
+    )
+    const { getPath } = show({ detail: seaPearlDetail })
+
+    const draftBtn = screen.getByRole('button', { name: 'Draft report' })
+    fireEvent.click(draftBtn)
+    fireEvent.click(draftBtn)
+
+    expect(reportsApi.create).toHaveBeenCalledTimes(1)
+    expect(reportsApi.create).toHaveBeenCalledWith(419007431)
+    expect(draftBtn.disabled).toBe(true)
+
+    await act(async () => {
+      resolveCreate({ id: 88 })
+    })
+
+    expect(getPath()).toBe('/reports?id=88')
+    expect(screen.getByTestId('reports-page')).toBeTruthy()
+  })
+
+  it('shows error on report creation failure and does not navigate', async () => {
+    reportsApi.create.mockRejectedValue(new Error('Network failure'))
+    const { getPath } = show({ detail: seaPearlDetail })
+
+    const draftBtn = screen.getByRole('button', { name: 'Draft report' })
+    await act(async () => {
+      fireEvent.click(draftBtn)
+    })
+
+    expect(reportsApi.create).toHaveBeenCalledTimes(1)
+    expect(getPath()).toBe('/')
+    expect(screen.queryByTestId('reports-page')).toBeNull()
+    expect(screen.getByRole('alert').textContent).toContain('Could not create an evidence snapshot')
+    expect(screen.getByRole('link', { name: 'Open evidence' })).toBeTruthy()
   })
 })

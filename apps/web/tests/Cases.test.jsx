@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AlertsPage, EvidencePage, ReportsPage } from '@/pages/Cases'
@@ -783,5 +783,108 @@ describe('Cases / EvidencePage & ReportsPage', () => {
     reportsApi.list.mockResolvedValue([sampleReport])
     await openReports('/reports')
     expect(document.body.textContent).not.toContain('IST IST')
+  })
+
+  it('discards sign-off rejection arriving after switching to report #2 while still showing on report #1 (B-16b)', async () => {
+    let rejectSign
+    reportsApi.list.mockResolvedValue([sampleReport, sampleReport2])
+    reportsApi.sign.mockImplementation(
+      () =>
+        new Promise((_, reject) => {
+          rejectSign = reject
+        }),
+    )
+
+    await openReports('/reports?id=1')
+
+    const officerInput = screen.getByLabelText(/Officer name/)
+    const checkbox = screen.getByLabelText(/I reviewed the evidence/)
+    const signBtn = screen.getByRole('button', { name: 'Record sign-off' })
+
+    fireEvent.change(officerInput, { target: { value: 'Officer Rao' } })
+    fireEvent.click(checkbox)
+
+    fireEvent.click(signBtn)
+    expect(reportsApi.sign).toHaveBeenCalledWith(1, 'Officer Rao', true)
+
+    const report2Link = screen.getByRole('link', { name: /#2/ })
+    await act(async () => {
+      fireEvent.click(report2Link)
+    })
+
+    expect(screen.getByText('REPORT #2 · Awaiting review')).toBeTruthy()
+
+    await act(async () => {
+      rejectSign(new Error('Sign-off failed on server'))
+    })
+
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('shows sign-off rejection that arrives while report #1 is still open (B-16b)', async () => {
+    let rejectSign
+    reportsApi.list.mockResolvedValue([sampleReport, sampleReport2])
+    reportsApi.sign.mockImplementation(
+      () =>
+        new Promise((_, reject) => {
+          rejectSign = reject
+        }),
+    )
+
+    await openReports('/reports?id=1')
+
+    const officerInput = screen.getByLabelText(/Officer name/)
+    const checkbox = screen.getByLabelText(/I reviewed the evidence/)
+    const signBtn = screen.getByRole('button', { name: 'Record sign-off' })
+
+    fireEvent.change(officerInput, { target: { value: 'Officer Rao' } })
+    fireEvent.click(checkbox)
+
+    fireEvent.click(signBtn)
+
+    await act(async () => {
+      rejectSign(new Error('Sign-off failed on server'))
+    })
+
+    expect(screen.getByRole('alert').textContent).toContain('Could not sign report.')
+  })
+
+  it('shows display name in evidence factor detail and report factor row when detail contains raw name (B-16b)', async () => {
+    const detailWithRawName = {
+      ...seaPearlDetail,
+      factors: [
+        {
+          key: 'encounter',
+          label: 'Close encounter',
+          detail: 'Met HAI FENG 818 at 0.4 km',
+          points: 0.18,
+          max_points: 0.18,
+        },
+      ],
+      encounters: [
+        { mmsi: 412000000, name: 'HAI FENG 818', closest_m: 400, hours: 2.5 },
+      ],
+    }
+
+    vesselsApi.get.mockResolvedValue(detailWithRawName)
+    await openEvidence('419007431')
+    const evidenceFactorDetail = screen.getByText('Met Hai Feng 818 at 0.4 km')
+    expect(evidenceFactorDetail).toBeTruthy()
+    expect(evidenceFactorDetail.textContent).not.toContain('HAI FENG 818')
+
+    cleanup()
+
+    reportsApi.list.mockResolvedValue([
+      {
+        ...sampleReport,
+        snapshot: detailWithRawName,
+      },
+    ])
+    await openReports('/reports?id=1')
+    const reportFactorRow = screen.getByText(/Met Hai Feng 818 at 0.4 km/).closest('div')
+    expect(reportFactorRow.textContent).toContain('Met Hai Feng 818 at 0.4 km')
+    expect(reportFactorRow.textContent).not.toContain('HAI FENG 818')
+    const pre = document.querySelector('pre')
+    expect(pre.textContent).toContain('HAI FENG 818')
   })
 })

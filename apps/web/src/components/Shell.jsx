@@ -1,8 +1,9 @@
-import { Component, useSyncExternalStore } from 'react'
+import { Component } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { Bell, Droplet, FileText, Map, Settings, Ship } from 'lucide-react'
 import { vesselsApi } from '../lib/api'
 import usePolling from '../lib/usePolling'
+import useOnline from '../lib/useOnline'
 import { sourceLabel, timeIST } from '../lib/format'
 import Logo from './Logo'
 
@@ -61,19 +62,8 @@ class PageBoundary extends Component {
   }
 }
 
-function subscribeOnline(callback) {
-  window.addEventListener('online', callback)
-  window.addEventListener('offline', callback)
-  return () => {
-    window.removeEventListener('online', callback)
-    window.removeEventListener('offline', callback)
-  }
-}
-
-const getOnlineSnapshot = () => navigator.onLine
-
 function DataModeBanner({ fleet }) {
-  const isOnline = useSyncExternalStore(subscribeOnline, getOnlineSnapshot)
+  const isOnline = useOnline()
   const isOffline = !isOnline
 
   let text

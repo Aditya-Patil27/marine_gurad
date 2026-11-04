@@ -1,6 +1,7 @@
-import { Link } from 'react-router-dom'
+import { useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { CircleAlert, CircleCheck, CircleHelp, CircleMinus, X } from 'lucide-react'
-import { isNotFound } from '../../lib/api'
+import { isNotFound, reportsApi } from '../../lib/api'
 import { CLEARS, dateTimeIST, levelStyle, score, sourceLabel, vesselName, vesselType, withDisplayNames } from '../../lib/format'
 
 const CHECK_ICON = {
@@ -40,6 +41,24 @@ function ClearIf({ clearIf }) {
 }
 
 export default function VesselPanel({ detail, mmsi, error, loading, onClose, onRetry, names }) {
+  const [drafting, setDrafting] = useState(false)
+  const [draftError, setDraftError] = useState('')
+  const navigate = useNavigate()
+
+  async function handleDraftReport() {
+    if (drafting) return
+    setDrafting(true)
+    setDraftError('')
+    try {
+      const r = await reportsApi.create(Number(detail.mmsi))
+      navigate(`/reports?id=${r.id}`)
+    } catch {
+      setDraftError('Could not create an evidence snapshot. Check the API and database migration.')
+    } finally {
+      setDrafting(false)
+    }
+  }
+
   if (!detail && error && !loading) {
     // Only a 404 means the vessel is missing; anything else is the connection, and worth another try
     const missing = isNotFound(error)
@@ -135,9 +154,17 @@ export default function VesselPanel({ detail, mmsi, error, loading, onClose, onR
         {detail.clear_if && <ClearIf clearIf={detail.clear_if} />}
       </div>
 
+      {draftError && (
+        <p role="alert" className="border-t border-line px-5 py-2 text-sm text-risk-red">
+          {draftError}
+        </p>
+      )}
+
       <div className="flex gap-2.5 border-t border-line px-5 pb-[18px] pt-3.5">
         <Link to={`/vessels/${detail.mmsi}`} className="btn btn-primary flex-1">Open evidence</Link>
-        <Link to={`/vessels/${detail.mmsi}`} className="btn">Draft report</Link>
+        <button type="button" className="btn" disabled={drafting} onClick={handleDraftReport}>
+          Draft report
+        </button>
       </div>
     </aside>
   )
