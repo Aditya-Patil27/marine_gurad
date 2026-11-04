@@ -27,7 +27,7 @@ Status: `queued`, `in round N`, `done (SHA)`, `blocked`, `you` (a person has to 
 |---|---|---|---|---|
 | B-07 | F08 | The map shows a dated regional environmental value with units and attribution | H-01; fixture first | blocked: needs A's endpoint; done on fixture (c6c510c) |
 | B-08 | F07, F08 | The vessel panel and evidence view link to that value without implying a cause | B-07 | blocked: needs A's endpoint; done on fixture (d03d087) |
-| B-09 | F03, F09, F13 | Evidence shows the data limitations beside the rule factors. The report view also shows `checks` and the "indicators, not proof of an offence" line, which `Cases.jsx:152-159` omits. | B-03 | done (40ce53d) |
+| B-09 | F03, F09, F13 | Evidence shows the data limitations beside the rule factors. The report view also shows `checks` and the "indicators, not proof of an offence" line, which `Cases.jsx:152-159` omits. | B-03 | done on fixture shape (40ce53d); `limitations` is not in `apps/api`, so it reads "not reported" until A adds it |
 | B-10 | Sprint | The journey runs on A's real endpoints instead of fixtures | A's 6 Nov delivery; Docker stack | blocked: needs A's 6 Nov delivery |
 
 ## Due 9 Nov, 18:00 IST
