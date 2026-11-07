@@ -1,6 +1,6 @@
 # Current A/B work
 
-Shared baseline: A-005B/R1 historical replay backend is complete through migration 013. The `ap` branch publishes the backend, contracts and preserved partial B work. Credentials, local data, CodeGraph state and agent transcripts remain local.
+Shared baseline: A-005B/R1 historical replay backend is complete through migration 013. GitHub branches `ap` and `handoff/b-005` publish the backend, contracts and preserved partial B work. B's existing `b/sprint` branch was left untouched. Credentials, local data, CodeGraph state and agent transcripts remain local.
 
 ## A — start now
 
@@ -11,6 +11,8 @@ After A-004E: finish legacy route protection and bounded provider jobs, then adv
 ## B — continue existing partial work
 
 Continue [B-005](B-005.md) from the partial frontend checkpoint already present on `ap`. B owns `apps/web/**`, relevant frontend tests and demo UI docs. Inspect the existing replay helpers/components before editing; do not reimplement them blindly. Apply migrations through 013 in B's Docker database, complete the map → vessel → assessment → case/report journey, handle 409 re-sync, and record an actual browser journey.
+
+B should fetch `origin/handoff/b-005` and continue from that branch in a separate checkout/worktree, or integrate it into B's own branch using the team's normal Git workflow. Do not force-update `b/sprint` or discard B-local work.
 
 B must not change API, migrations or backend contracts. After B-005, connect existing stored alert/triage and case lifecycle APIs to their screens.
 
