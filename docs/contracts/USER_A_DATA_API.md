@@ -35,7 +35,7 @@ For a selected event in a particular returned page, use:
 
 `GET /gfw/events/evidence?event_id=EVENT_ID&start_date=2024-01-01&end_date=2025-01-01&offset=0&limit=20&include_regional_ocean_context=true`
 
-Use the same date range, offset and limit as the page containing the event. The response downloads JSON with `snapshot`, `sha256`, and `integrity_note`. Optional regional context retains its original dates and states that it may not coincide with the event. A 404 means the ID was not found on that page. A 503 means data access, quota or the requested local observation artifact is unavailable. A checksum is not authenticated approval or a digital signature.
+Use the same date range, offset and limit as the page containing the event. The response downloads JSON with `snapshot`, `sha256`, and `integrity_note`. Optional regional context retains its original dates and states that it may not coincide with the event. A 404 means the ID was not found on that page. A 503 means data access, quota or the requested local observation artifact is unavailable. A checksum is not authenticated approval or a digital signature. The same canonical evidence can be bound to an authenticated report; see [Bound GFW event evidence](#bound-gfw-event-evidence-a-004e).
 
 `GET /gfw/status` returns provider quota headers last observed by this backend process, their observation time, `local_requests_last_30_minutes`, and limitations. Provider usage counters may lag by 30 minutes; multiple app processes do not share this state.
 
@@ -92,8 +92,15 @@ A stale `expected_version` or an invalid transition returns 409; an unknown aler
 
 ## Existing prototype report
 
-`POST /reports/` accepts `{"mmsi": 123456789, "include_regional_ocean_context": true}`. The optional flag defaults to false. If requested but unavailable, creation returns 503. The regional observations are included in the hashed report snapshot with a non-association statement. This existing route requires a recent vessel already in the database; it does not import the GFW event.
+`POST /reports/` accepts `{"mmsi": 123456789, "include_regional_ocean_context": true}`. The optional flag defaults to false. If requested but unavailable, creation returns 503. The regional observations are included in the hashed report snapshot with a non-association statement. This existing route requires a recent vessel already in the database.
+
 It also accepts optional `window_start`/`window_end` with the same validation as vessel evidence. The hashed snapshot then contains the shared `window` object and preserves the stored observation dates and source labels. When `assessment_id` is supplied and the report selects a historical window, the persisted assessment anchors must match the report window exactly; a different window, same-duration different anchors, a re-synced row or a legacy row without anchors returns 409 before any report is inserted, with a safe retry instruction. On a match, `snapshot.persisted_assessment` contains the stored `window`, the `report_window` and `window_match: true`, and both windows are hashed.
+
+### Bound GFW event evidence (A-004E)
+
+`POST /reports/` optionally accepts `gfw_event_id`, `gfw_start_date`, `gfw_end_date`, `gfw_offset` (default 0), `gfw_limit` (default 20) and `include_gfw_ocean_context` (default false). The server re-fetches the same bounded regional page at report creation, so the event must still be present on that page. `gfw_event_id` requires both dates; dates without an event ID return 422. A missing event returns 404, a provider/quota failure returns 503, and an event whose `vessel.ssvid` does not match the report `mmsi` returns 409. All of these fail before any report row is inserted.
+
+On success, `snapshot.gfw_event_evidence` stores the canonical export (`snapshot`, its `sha256`, `integrity_note`) plus an association note, so the report digest covers it. The evidence preserves the provider event ID, original event start/end and position, requested date window, dataset/source metadata and limitations. Optional `regional_ocean_context` keeps the prepared Copernicus observation dates and states it may not be concurrent with the event. The event is a historical inferred point, not a vessel track, live position or proof of illegality. Because the evidence is inside the hashed snapshot, the existing case revision integrity check binds it; no schema migration is needed.
 
 Set `include_weather_context: true` to capture fresh weather for the latest qualifying AIS gap into `snapshot.weather_context` before hashing. The result is modelled context, not a direct observation or a risk adjustment. `event_time_utc` is the gap start; `time_utc` and `wave_time_utc` are the selected wind and wave model times, which can differ from the gap time. `retrieved_at`, source, location and limitations accompany available results. If the provider is unavailable, the snapshot records `unavailable` with the known gap time/location; if no gap qualifies it records `not_checked`. No weather values are invented. This is fetched when the report is created and may differ from weather displayed earlier. The flag defaults to false.
 

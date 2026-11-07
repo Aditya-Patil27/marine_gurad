@@ -6,7 +6,7 @@ frontend compatibility but identity always comes from the session cookie.
 """
 import hashlib
 import json
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.api import gfw
 from app.api.auth import csrf_protect, require_analyst, require_approver, require_viewer
 from app.api.vessels import get_vessel
 from app.api.ocean import load_satellite_observations
@@ -48,6 +49,35 @@ class CreateReport(BaseModel):
     assessment_id: UUID | None = None
     window_start: datetime | None = None
     window_end: datetime | None = None
+    gfw_event_id: str | None = Field(default=None, min_length=1, max_length=128)
+    gfw_start_date: date | None = None
+    gfw_end_date: date | None = None
+    gfw_offset: int = Field(default=0, ge=0, le=10000)
+    gfw_limit: int = Field(default=20, ge=1, le=50)
+    include_gfw_ocean_context: bool = False
+
+
+async def load_gfw_evidence(request: CreateReport) -> dict | None:
+    """Re-fetch and canonicalize the selected GFW event before any report insert."""
+    if request.gfw_event_id is None:
+        if request.gfw_start_date is not None or request.gfw_end_date is not None:
+            raise HTTPException(422, "gfw_start_date and gfw_end_date require gfw_event_id")
+        return None
+    if request.gfw_start_date is None or request.gfw_end_date is None:
+        raise HTTPException(422, "gfw_event_id requires gfw_start_date and gfw_end_date")
+    page = await gfw.regional_events(
+        request.gfw_start_date, request.gfw_end_date, request.gfw_offset, request.gfw_limit
+    )
+    evidence = gfw.canonical_event_evidence(
+        page, request.gfw_event_id, request.include_gfw_ocean_context
+    )
+    ssvid = (evidence["snapshot"]["event"].get("vessel") or {}).get("ssvid")
+    if ssvid is None or str(ssvid) != str(request.mmsi):
+        raise HTTPException(
+            409,
+            "The selected GFW event does not identify this report's vessel; no report was created.",
+        )
+    return evidence
 
 
 class SignReport(BaseModel):
@@ -75,6 +105,7 @@ def create_report(
     _analyst: UserResponse = Depends(require_analyst),
     _csrf: None = Depends(csrf_protect),
     db: Session = Depends(get_db),
+    gfw_evidence: dict | None = Depends(load_gfw_evidence),
 ):
     # The same bounded UTC window as the evidence/assessment callers. When
     # window_start/window_end are omitted, keep the existing rolling call shape.
@@ -162,6 +193,13 @@ def create_report(
         candidate = dict(row._mapping)
         candidate["observed_at"] = candidate["observed_at"].isoformat()
         snapshot["sar_candidates"].append(candidate)
+    if request.gfw_event_id is not None:
+        if not isinstance(gfw_evidence, dict):
+            raise HTTPException(422, "GFW event evidence was not resolved")
+        snapshot["gfw_event_evidence"] = {
+            **gfw_evidence,
+            "association": "Selected historical inferred GFW event re-fetched from the bounded regional page when this report was created; preserved as a source-bound event point, not a vessel track, live position or proof of illegality.",
+        }
     if request.include_regional_ocean_context:
         context = load_satellite_observations()
         snapshot["regional_ocean_context"] = {

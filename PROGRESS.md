@@ -1,6 +1,6 @@
 # Current execution state
 
-Updated 7 November 2026. Branch `ap`, HEAD `9220682`; substantial existing dirty/untracked implementation is part of this assessment. Commit count is not completion evidence.
+Updated 7 November 2026. Branch `ap`; commit count is not completion evidence.
 
 ## Product and completion
 
@@ -20,6 +20,8 @@ The prototype has a substantial backend foundation and a partial browser journey
 | Browser | Map, source labels, local sign-in, vessel evidence, reports and case/revision screen | End-to-end judged journey, source/status operations, placeholder routes |
 
 A-001, A-002A/B, A-003B/D/E/F/G, A-004A/B/C/D, A-005, A-006A/B/C/D, A-008A and A-H04 have bounded completion evidence. See [task records](tasks/completed/) and [backlog](tasks/backlog.md), rather than repeating test transcripts here. Completion of those slices does not complete their parent product features.
+
+A-004E is also complete with supplied focused evidence. It reuses the existing GFW canonical export and report/case integrity path to bind one re-fetched historical event, with optional independently dated SST context, into a hashed report snapshot. No migration was needed. The browser caller and an actual real-event reviewed journey remain incomplete.
 
 ## Current observations versus historical checks
 

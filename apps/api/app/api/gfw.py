@@ -194,13 +194,8 @@ async def regional_events(start_date: date = Query(...), end_date: date = Query(
     return await fetch_regional_events(start_date, end_date, offset, limit)
 
 
-@router.get("/events/evidence")
-async def export_event_evidence(event_id: str = Query(..., min_length=1, max_length=128),
-                                start_date: date = Query(...), end_date: date = Query(...),
-                                offset: int = Query(0, ge=0, le=10000), limit: int = Query(20, ge=1, le=50),
-                                include_regional_ocean_context: bool = False):
-    """Export a selected event from the requested page as a source-bound JSON snapshot."""
-    page = await regional_events(start_date, end_date, offset, limit)
+def canonical_event_evidence(page, event_id: str, include_regional_ocean_context: bool = False):
+    """Canonical source-bound evidence for one event selected from a fetched page."""
     selected = next((event for event in page["data"]["entries"] if event.get("id") == event_id), None)
     if selected is None:
         raise HTTPException(404, "Event not found on the requested page")
@@ -212,9 +207,19 @@ async def export_event_evidence(event_id: str = Query(..., min_length=1, max_len
         snapshot["regional_ocean_context"] = {**load_satellite_observations(),
             "association": "Regional historical context only; not necessarily concurrent with or at the event position."}
     canonical = json.dumps(snapshot, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
-    return JSONResponse({"snapshot": snapshot, "sha256": hashlib.sha256(canonical).hexdigest(),
-                         "integrity_note": "Checksum detects changes only when compared with a separately trusted copy; not a digital signature."},
-                        headers={"Content-Disposition": "attachment; filename=gfw-event-evidence.json"})
+    return {"snapshot": snapshot, "sha256": hashlib.sha256(canonical).hexdigest(),
+            "integrity_note": "Checksum detects changes only when compared with a separately trusted copy; not a digital signature."}
+
+
+@router.get("/events/evidence")
+async def export_event_evidence(event_id: str = Query(..., min_length=1, max_length=128),
+                                start_date: date = Query(...), end_date: date = Query(...),
+                                offset: int = Query(0, ge=0, le=10000), limit: int = Query(20, ge=1, le=50),
+                                include_regional_ocean_context: bool = False):
+    """Export a selected event from the requested page as a source-bound JSON snapshot."""
+    page = await regional_events(start_date, end_date, offset, limit)
+    evidence = canonical_event_evidence(page, event_id, include_regional_ocean_context)
+    return JSONResponse(evidence, headers={"Content-Disposition": "attachment; filename=gfw-event-evidence.json"})
 
 
 @router.get("/events/regional/geojson")

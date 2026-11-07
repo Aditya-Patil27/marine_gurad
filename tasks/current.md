@@ -2,11 +2,11 @@
 
 Shared baseline: A-005B/R1 historical replay backend is complete through migration 013. GitHub branches `ap` and `handoff/b-005` publish the backend, contracts and preserved partial B work. B's existing `b/sprint` branch was left untouched. Credentials, local data, CodeGraph state and agent transcripts remain local.
 
-## A — start now
+## A — completed handoff
 
-Execute [A-004E](A-004E.md): persist and bind one real historical GFW event evidence snapshot, with optional independently dated SST context, into the existing authenticated report/case revision path. A owns `apps/api/**`, migrations, contracts and the data manifest. A must use a fresh backend-only OpenCode session and must not edit `apps/web/**` or resume the interrupted B session.
+[A-004E](completed/A-004E.md) is complete: one selected historical GFW event can be re-fetched from its bounded page and bound, with optional independently dated SST context, into the authenticated hashed report/case revision path. No migration or parallel evidence system was added. A must not reopen this slice without a concrete defect.
 
-After A-004E: finish legacy route protection and bounded provider jobs, then advance dependency-ready SAR/triage/environment work from `PLAN.md`. Do not reopen completed replay-window work without a new defect.
+The next independent A work is remaining legacy route protection and bounded provider jobs. It must use a separate backend-only brief and must not edit `apps/web/**` or resume B's frontend session.
 
 ## B — continue existing partial work
 
@@ -14,7 +14,7 @@ Continue [B-005](B-005.md) from the partial frontend checkpoint already present 
 
 B should fetch `origin/handoff/b-005` and continue from that branch in a separate checkout/worktree, or integrate it into B's own branch using the team's normal Git workflow. Do not force-update `b/sprint` or discard B-local work.
 
-B must not change API, migrations or backend contracts. After B-005, connect existing stored alert/triage and case lifecycle APIs to their screens.
+B must not change API, migrations or backend contracts. The completed A-004E contract is available for the next browser caller integration; preserve its exact GFW page bounds and truthful historical-event limitations. After B-005, connect existing stored alert/triage and case lifecycle APIs to their screens.
 
 ## OpenCode efficiency
 
