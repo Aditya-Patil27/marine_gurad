@@ -16,8 +16,8 @@ Status: `queued`, `in round N`, `done (SHA)`, `blocked`, `you` (a person has to 
 | B-04 | F13 | The Shell shows one global data-mode banner, including an offline state. Seeded vessels no longer sit beside real weather under one green pill. | B-03 | done (1cca052); one test gap moved to round 6, one follow-up to B-16 |
 | B-05 | F13 | Every evidence time shows its date and a labelled timezone. `timeIST` drops the date, and Reports prints raw ISO strings. Report list rows show a date and status, so repeat snapshots can be told apart. | none | done (5ee3732); two test gaps moved to round 7 |
 | B-16a | F13 | Wording fixes. The Spills and Settings placeholders stop promising the 10 Nov prototype. The Alerts intro (`Cases.jsx:17`) is correct. Alerts, Evidence and report factors show display names. Evidence shows "1 gap · 1 encounter", and one duration format for its own encounter rows. A named source beside a missing mode no longer contradicts itself: "Source: Open-Meteo … · Weather data: Source not reported" (found in the round 4 review). Adds the two test gaps from the B-05 review. Durations inside API text, such as "6.4 h so far", stay as they are and go to A. | none | done (aefb751); one test gap moved to B-16b |
-| B-16b | F13 | Behaviour fixes. "Draft report" has its own target, not the same one as "Open evidence". A sign-off rejection that arrives after the officer has opened another report does not appear on that report (found in the round 2 review; B-17 covers only a rejection that arrives first). The map pill's dot is not green while the browser is offline: today live data keeps it green under an amber "Offline" banner (found in the round 5 review). Adds a test for a factor `detail` that contains a raw AIS name, on Evidence and on the report (found in the round 7 review). | none | queued |
-| B-06 | Sprint | Draft the problem statement and video storyboard in `docs/demo/storyboard.md` | none | queued |
+| B-16b | F13 | Behaviour fixes. "Draft report" has its own target, not the same one as "Open evidence". A sign-off rejection that arrives after the officer has opened another report does not appear on that report (found in the round 2 review; B-17 covers only a rejection that arrives first). The map pill's dot is not green while the browser is offline: today live data keeps it green under an amber "Offline" banner (found in the round 5 review). Adds a test for a factor `detail` that contains a raw AIS name, on Evidence and on the report (found in the round 7 review). | none | done (fedc063) |
+| B-06 | Sprint | Draft the problem statement and video storyboard in `docs/demo/storyboard.md` | none | done (1cdc277) |
 | H-01 | Contracts | Agree response examples, enums, units and empty states with A | A's `docs/contracts/` (not in the repo yet) | you |
 | H-04 | Contracts | Raise two weather issues with A. (1) The API check says "No marine weather feed is connected yet" directly above a live Open-Meteo reading on Evidence. (2) Snapshots store no weather and the check stays `not_checked`, so a signed report loses what the officer saw. | A | you |
 
@@ -25,25 +25,25 @@ Status: `queued`, `in round N`, `done (SHA)`, `blocked`, `you` (a person has to 
 
 | ID | Feature | Outcome | Depends on | Status |
 |---|---|---|---|---|
-| B-07 | F08 | The map shows a dated regional environmental value with units and attribution | H-01; fixture first | queued |
-| B-08 | F07, F08 | The vessel panel and evidence view link to that value without implying a cause | B-07 | queued |
-| B-09 | F03, F09, F13 | Evidence shows the data limitations beside the rule factors. The report view also shows `checks` and the "indicators, not proof of an offence" line, which `Cases.jsx:152-159` omits. | B-03 | queued |
-| B-10 | Sprint | The journey runs on A's real endpoints instead of fixtures | A's 6 Nov delivery; Docker stack | queued |
+| B-07 | F08 | The map shows a dated regional environmental value with units and attribution | H-01; fixture first | blocked: needs A's endpoint; done on fixture (c6c510c) |
+| B-08 | F07, F08 | The vessel panel and evidence view link to that value without implying a cause | B-07 | blocked: needs A's endpoint; done on fixture (d03d087) |
+| B-09 | F03, F09, F13 | Evidence shows the data limitations beside the rule factors. The report view also shows `checks` and the "indicators, not proof of an offence" line, which `Cases.jsx:152-159` omits. | B-03 | done on fixture shape (40ce53d); `limitations` is not in `apps/api`, so it reads "not reported" until A adds it |
+| B-10 | Sprint | The journey runs on A's real endpoints instead of fixtures | A's 6 Nov delivery; Docker stack | blocked: needs A's 6 Nov delivery |
 
 ## Due 9 Nov, 18:00 IST
 
 | ID | Feature | Outcome | Depends on | Status |
 |---|---|---|---|---|
-| B-11 | F09 | The report view links each fact to its source and exports sourced JSON | B-10, A's export | queued |
-| B-12 | F13 | Tests cover missing sources, real-data replay, and weather that the backend itself reports as `unavailable` | B-10 | queued |
-| B-13 | F14 | Record review time and evidence completeness, with sample size and limits | B-10 | queued |
+| B-11 | F09 | The report view links each fact to its source and exports sourced JSON | B-10, A's export | blocked: needs A's 6 Nov delivery |
+| B-12 | F13 | Tests cover missing sources, real-data replay, and weather that the backend itself reports as `unavailable` | B-10 | blocked: needs A's 6 Nov delivery |
+| B-13 | F14 | Record review time and evidence completeness, with sample size and limits | B-10 | blocked: needs A's 6 Nov delivery |
 | H-02 | Sprint | Record the climate-centred walkthrough as a draft video on actual screens | B-11 | you |
 
 ## Due 10 Nov, 18:00 IST
 
 | ID | Feature | Outcome | Depends on | Status |
 |---|---|---|---|---|
-| B-14 | F13 | The full journey runs on the prepared setup from a production build, with presentation fixes at 1366×768 and 1920×1080 | all above | queued |
+| B-14 | F13 | The full journey runs on the prepared setup from a production build, with presentation fixes at 1366×768 and 1920×1080 | all above | blocked: needs A's 6 Nov delivery |
 | H-03 | Sprint | Finish the video and evidence pack, and rehearse the judging explanation | B-14 | you |
 
 ## B-02 journey results, 3 Nov

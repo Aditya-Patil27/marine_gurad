@@ -14,8 +14,9 @@ class Settings(BaseSettings):
     
     # Supabase
     SUPABASE_URL: str = ""
-    SUPABASE_ANON_KEY: str = ""
-    SUPABASE_SERVICE_ROLE_KEY: str = ""
+    SUPABASE_PUBLISHABLE_KEY: str = ""
+    SUPABASE_SECRET_KEY: str = ""
+    SUPABASE_JWKS_URL: str = ""
     
     # Database (Supabase PostgreSQL)
     DATABASE_URL: str = ""
@@ -28,7 +29,16 @@ class Settings(BaseSettings):
     # Google Gemini
     GEMINI_API_KEY: str = ""
     GEMINI_MODEL: str = "gemini-2.5-flash"
-    
+
+    # Local authentication (offline workstation)
+    AUTH_SESSION_COOKIE_NAME: str = "samudra_session"
+    AUTH_CSRF_COOKIE_NAME: str = "samudra_csrf"
+    AUTH_SESSION_TTL_MINUTES: int = 480
+    AUTH_COOKIE_SECURE: bool = False  # Set True for HTTPS deployment
+    AUTH_LOGIN_MAX_ATTEMPTS: int = 5
+    AUTH_LOGIN_WINDOW_SECONDS: int = 300
+    AUTH_LOGIN_MAX_TRACKED_KEYS: int = 1024
+
     # Frontend
     FRONTEND_URL: str = "http://localhost:5173"
     
@@ -74,6 +84,13 @@ class Settings(BaseSettings):
     # Copernicus Marine Service API
     COPERNICUS_CLIENT_ID: str = ""
     COPERNICUS_CLIENT_SECRET: str = ""
+    AISSTREAM_API_KEY: str = ""
+    # Durable provider positions stay opt-in until the account holder confirms
+    # the provider's retention terms for the intended use.
+    AISSTREAM_PERSIST_ENABLED: bool = False
+    GFW_API_TOKEN: str = ""
+    COPERNICUS_MARINE_USERNAME: str = ""
+    COPERNICUS_MARINE_PASSWORD: str = ""
 
     class Config:
         env_file = ".env"

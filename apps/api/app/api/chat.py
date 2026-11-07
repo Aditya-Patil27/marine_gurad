@@ -6,6 +6,8 @@ from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 
+from app.api.auth import csrf_protect, require_analyst
+from app.schemas.user import UserResponse
 from app.services.chatbot import mia
 
 # Prefix is applied in main.py; setting it here too produced /api/v1/chat/chat/*
@@ -48,7 +50,13 @@ class ChatResponse(BaseModel):
 
 
 @router.post("/message", response_model=ChatResponse)
-async def send_message(request: ChatRequest):
+async def send_message(
+    request: ChatRequest,
+    # Identity before CSRF so anonymous requests get 401, not 403. Denied
+    # requests never reach the assistant or any provider call.
+    _analyst: UserResponse = Depends(require_analyst),
+    _csrf: None = Depends(csrf_protect),
+):
     """
     Send a message to Marine Intelligence Assistant (MIA)
     
@@ -97,7 +105,10 @@ async def chat_health():
 
 
 @router.post("/reset")
-async def reset_conversation():
+async def reset_conversation(
+    _analyst: UserResponse = Depends(require_analyst),
+    _csrf: None = Depends(csrf_protect),
+):
     """Reset conversation context (clears history on client side)"""
     return {
         "status": "success",

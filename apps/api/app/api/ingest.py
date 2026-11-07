@@ -1,17 +1,21 @@
 from fastapi import APIRouter, Depends, HTTPException, Body
 from sqlalchemy.orm import Session
+from app.api.auth import csrf_protect, require_analyst
 from app.database import get_db
 from app.models.vessel import VesselTrack, VesselType, get_vessel_type_from_code
+from app.schemas.user import UserResponse
 from app.models.pollution import PollutionEvent, PollutionType
 from app.services.pollution_detector import PollutionDetector
 from app.services.fleet import rescore_all
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Literal, Optional
 from geoalchemy2.shape import from_shape
 from shapely.geometry import Point, box
 
 router = APIRouter()
+
+SourceMode = Literal["live", "historical", "replay", "synthetic", "unknown"]
 
 
 class AISRecord(BaseModel):
@@ -37,16 +41,25 @@ class AISRecord(BaseModel):
 
 class AISBatch(BaseModel):
     records: List[AISRecord]
+    # Caller-declared provenance only. Omitted values stay conservative and are
+    # never upgraded from a configured provider or guess.
+    source: Optional[str] = Field(default=None, max_length=120)
+    source_mode: SourceMode = "unknown"
 
 
 @router.post("/ais")
 def ingest_ais_data(
     batch: AISBatch = Body(...),
+    # Identity before CSRF so anonymous requests get 401, not 403. All
+    # dependencies resolve before the body, so denied requests write nothing.
+    _analyst: UserResponse = Depends(require_analyst),
+    _csrf: None = Depends(csrf_protect),
     db: Session = Depends(get_db)
 ):
     """Webhook endpoint to receive AIS data"""
 
     inserted_count = 0
+    declared_source = (batch.source or "caller-supplied AIS ingest").strip() or "unknown"
 
     for record in batch.records:
         try:
@@ -83,6 +96,8 @@ def ingest_ais_data(
                 draft=record.draft,
                 cargo=record.cargo,
                 transceiver_class=record.transceiver_class,
+                source=declared_source,
+                source_mode=batch.source_mode,
             )
 
             db.add(vessel_track)
@@ -109,6 +124,9 @@ def ingest_satellite_image(
     image_url: str = Body(..., embed=True),
     latitude: float = Body(0.0, embed=True),
     longitude: float = Body(0.0, embed=True),
+    # Identity before CSRF; see ingest_ais_data for ordering rationale.
+    _analyst: UserResponse = Depends(require_analyst),
+    _csrf: None = Depends(csrf_protect),
     db: Session = Depends(get_db)
 ):
     """Process satellite image for pollution detection"""

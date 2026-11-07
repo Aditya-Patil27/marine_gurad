@@ -1,5 +1,7 @@
 # MIA v3.0 - Gemini 3 Deep Think & Agent Lightning Integration
 
+> Historical design/usage notes, not verified current behavior. Audit 4 November 2026: the actual chatbot uses `settings.GEMINI_MODEL` in `app/services/chatbot.py`; the hard-coded model selections, example interfaces, benchmark values and training claims below must not be treated as current implementation or evaluation evidence. Consult the source and [shared architecture](../../../ARCHITECTURE.md). OpenCode's implementation-agent model is separate from the application's MIA model. This document is retained for history, not an instruction to change dependencies or expose private reasoning.
+
 ## Overview
 SamudraSense's Marine Intelligence Assistant (MIA) has been upgraded to v3.0 with:
 - **Gemini 3 Pro Preview**: Advanced reasoning with Deep Think mode

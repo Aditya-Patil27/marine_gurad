@@ -139,6 +139,11 @@ class VesselTrack(SQLModel, table=True):
     cargo: Optional[int] = None  # Cargo type code
     transceiver_class: Optional[str] = Field(default=None, max_length=1)  # "A" or "B"
 
+    # Truthful provenance. Implicit writes stay ``unknown``; nothing is inferred
+    # from a configured provider or a caller's claim.
+    source: str = Field(default="unknown", max_length=120)
+    source_mode: str = Field(default="unknown", max_length=20)
+
     class Config:
         arbitrary_types_allowed = True
 

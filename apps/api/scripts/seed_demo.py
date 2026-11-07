@@ -123,9 +123,10 @@ def main():
         ]
         db.execute(text("""
             INSERT INTO vessel_tracks (mmsi, vessel_name, vessel_type, length, callsign, timestamp, location,
-                                       speed, course, is_dark, risk_score)
+                                       speed, course, is_dark, risk_score, source, source_mode)
             VALUES (:mmsi, :name, CAST(:type AS vesseltype), :length, :callsign, :t,
-                    ST_SetSRID(ST_MakePoint(:lon, :lat), 4326), :speed, :course, false, 0)
+                    ST_SetSRID(ST_MakePoint(:lon, :lat), 4326), :speed, :course, false, 0,
+                    'local demo seed', 'synthetic')
         """), rows)
         db.commit()
         print(f"Inserted {len(rows)} positions for {len(vessels)} vessels")

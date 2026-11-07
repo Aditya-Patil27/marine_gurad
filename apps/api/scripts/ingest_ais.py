@@ -130,6 +130,8 @@ def store_ais_records(df: pd.DataFrame, batch_size: int = 1000):
                     draft=row.get('Draft') if pd.notna(row.get('Draft')) else None,
                     cargo=cargo,
                     transceiver_class=row.get('TransceiverClass') if pd.notna(row.get('TransceiverClass')) else None,
+                    source='Marine Cadastre AIS CSV import',
+                    source_mode='historical',
                     is_dark=False,  # Will be calculated by separate process
                     risk_score=0.0  # Will be calculated by ML model
                 )

@@ -1,0 +1,2 @@
+# Install in an isolated environment: the current API pins an older NumPy.
+copernicusmarine==2.5.1

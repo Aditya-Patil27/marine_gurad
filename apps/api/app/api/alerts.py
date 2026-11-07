@@ -9,6 +9,12 @@ from app.services.alert_generator import AlertGenerator
 
 router = APIRouter()
 
+# Deterministic namespace so the same live projection is stable across reads.
+_ALERT_NS = uuid.UUID("b2c3d4e5-f6a7-8901-bcde-f12345678901")
+_SEVERITY_RANK = {"critical": 3, "high": 2, "medium": 1, "low": 0}
+_SEVERITY_MAP = {"critical": "HIGH", "high": "HIGH", "medium": "MEDIUM", "low": "LOW"}
+
+
 class Alert(BaseModel):
     id: str
     type: str  # POLLUTION, IUU_FISHING, MPA_VIOLATION
@@ -19,65 +25,134 @@ class Alert(BaseModel):
     location: dict
     metadata: Optional[dict] = None
 
+
+def alert_identity(alert: dict) -> tuple:
+    """Stable deduplication key for one vessel/condition/zone projection."""
+    zone = alert.get("mpa_id") or alert.get("mpa_name") or ""
+    return (alert["type"], int(alert["mmsi"]), str(zone))
+
+
+def alert_id(alert: dict) -> str:
+    return str(uuid.uuid5(_ALERT_NS, ":".join(str(part) for part in alert_identity(alert))))
+
+
+def _alert_rank(alert: dict) -> tuple:
+    return (_SEVERITY_RANK.get(alert.get("severity"), 0), alert.get("risk_score") or 0)
+
+
+def severity_label(alert: dict) -> str:
+    """Normalize generator severity to the stored/read vocabulary."""
+    return _SEVERITY_MAP.get(str(alert.get("severity") or "").lower(), "MEDIUM")
+
+
+def alert_location(alert: dict) -> dict:
+    if alert.get("lat") is None or alert.get("lon") is None:
+        return {}
+    return {"lat": alert["lat"], "lon": alert["lon"]}
+
+
+def alert_title(alert: dict) -> str:
+    mpa = alert.get("mpa_name", "Unknown MPA")
+    if alert["type"] == "MPA_VIOLATION":
+        return f"MPA Violation Detected - {mpa}"
+    if alert["type"] == "MPA_APPROACH_PREDICTED":
+        return f"Predicted MPA Violation - {mpa}"
+    if alert["type"] == "MPA_APPROACH":
+        return f"Vessel Near MPA - {mpa}"
+    return ""
+
+
+def alert_description(alert: dict) -> str:
+    mpa = alert.get("mpa_name", "protected area")
+    if alert["type"] == "MPA_VIOLATION":
+        return (
+            f"Vessel {alert['mmsi']} is currently inside {mpa}. "
+            f"Risk score: {alert['risk_score']:.2f}"
+        )
+    if alert["type"] == "MPA_APPROACH_PREDICTED":
+        return (
+            f"Vessel {alert['mmsi']} is predicted to enter {mpa} in "
+            f"{alert.get('estimated_time', 'unknown time')}. "
+            f"Distance: {alert.get('distance_km', 0):.2f}km"
+        )
+    if alert["type"] == "MPA_APPROACH":
+        return (
+            f"Vessel {alert['mmsi']} is within {alert.get('distance_km', 0):.2f}km "
+            f"of {mpa}"
+        )
+    return ""
+
+
+def alert_context(alert: dict) -> dict:
+    """Generator extras excluding identity, location, time and provenance."""
+    return {
+        key: value
+        for key, value in alert.items()
+        if key not in ["type", "severity", "mmsi", "lat", "lon", "timestamp",
+                       "source", "source_mode"]
+    }
+
+
+def deduplicate_alerts(raw_alerts) -> dict:
+    """Collapse generator rows by stable identity, keeping the strongest row."""
+    grouped = {}
+    for alert in raw_alerts:
+        key = alert_identity(alert)
+        current = grouped.get(key)
+        if current is None or _alert_rank(alert) > _alert_rank(current):
+            grouped[key] = alert
+    return grouped
+
+
 @router.get("/", response_model=List[Alert])
 def get_alerts(
     limit: int = Query(50, ge=1, le=100),
     severity: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
-    """
-    Get active alerts with predictive warnings from database.
-    
-    Optimized to avoid N+1 query problem - vessel coordinates are now
-    included directly in the alert data from AlertGenerator.
+    """Return a stable, deduplicated projection of current generator alerts.
+
+    This is still an ephemeral read: nothing is persisted, acknowledged or
+    resolved here, and repeated reads intentionally share IDs for the same
+    vessel/condition/zone so a client can merge duplicates safely.
     """
 
     # Use AlertGenerator to generate real-time alerts
     alert_gen = AlertGenerator(db)
     raw_alerts = alert_gen.check_mpa_violations()
 
+    # Collapse duplicate generator rows deterministically before mapping.
+    grouped = deduplicate_alerts(raw_alerts)
+
     alerts = []
 
-    for alert in raw_alerts:
+    for alert in grouped.values():
         # Filter by severity if specified
-        severity_map = {"critical": "HIGH", "high": "HIGH", "medium": "MEDIUM", "low": "LOW"}
-        severity_upper = severity_map.get(alert["severity"], "MEDIUM")
+        severity_upper = severity_label(alert)
         if severity and severity_upper != severity.upper():
             continue
 
         # Extract location directly from alert data (no additional query needed)
         # AlertGenerator now includes lat/lon coordinates via SQL JOIN
-        location = {}
-        if "lat" in alert and "lon" in alert:
-            location = {"lat": alert["lat"], "lon": alert["lon"]}
+        location = alert_location(alert)
 
-        # Generate title and description based on alert type
-        title = ""
-        description = ""
-
-        if alert["type"] == "MPA_VIOLATION":
-            title = f"MPA Violation Detected - {alert.get('mpa_name', 'Unknown MPA')}"
-            description = f"Vessel {alert['mmsi']} is currently inside {alert.get('mpa_name', 'protected area')}. Risk score: {alert['risk_score']:.2f}"
-        elif alert["type"] == "MPA_APPROACH_PREDICTED":
-            title = f"Predicted MPA Violation - {alert.get('mpa_name', 'Unknown MPA')}"
-            description = f"Vessel {alert['mmsi']} is predicted to enter {alert.get('mpa_name', 'protected area')} in {alert.get('estimated_time', 'unknown time')}. Distance: {alert.get('distance_km', 0):.2f}km"
-        elif alert["type"] == "MPA_APPROACH":
-            title = f"Vessel Near MPA - {alert.get('mpa_name', 'Unknown MPA')}"
-            description = f"Vessel {alert['mmsi']} is within {alert.get('distance_km', 0):.2f}km of {alert.get('mpa_name', 'protected area')}"
-
-        # Generate unique alert ID using UUID to prevent collisions
-        # when same vessel triggers multiple alerts of the same type
-        alert_id = f"{alert['type']}_{alert['mmsi']}_{uuid.uuid4().hex[:8]}"
+        metadata = alert_context(alert)
+        metadata.update({
+            "source": alert.get("source"),
+            "source_mode": alert.get("source_mode"),
+            "persisted": False,
+            "lifecycle": "ephemeral_projection",
+        })
 
         alerts.append({
-            "id": alert_id,
+            "id": alert_id(alert),
             "type": alert["type"],
             "severity": severity_upper,
-            "title": title,
-            "description": description,
-            "timestamp": datetime.utcnow(),
+            "title": alert_title(alert),
+            "description": alert_description(alert),
+            "timestamp": alert.get("timestamp") or datetime.utcnow(),
             "location": location,
-            "metadata": {k: v for k, v in alert.items() if k not in ["type", "severity", "mmsi", "lat", "lon"]}
+            "metadata": metadata,
         })
 
     # Sort by severity (HIGH first), then risk score (highest first)

@@ -5,7 +5,9 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+from app.api.auth import csrf_protect, require_analyst
 from app.database import get_db
+from app.schemas.user import UserResponse
 
 router = APIRouter()
 
@@ -27,7 +29,13 @@ class Detection(BaseModel):
 
 
 @router.post("/detections", status_code=201)
-def record_detection(item: Detection, db: Session = Depends(get_db)):
+def record_detection(
+    item: Detection,
+    # Identity before CSRF so anonymous requests get 401, not 403.
+    _analyst: UserResponse = Depends(require_analyst),
+    _csrf: None = Depends(csrf_protect),
+    db: Session = Depends(get_db),
+):
     # A nearby AIS ping is a candidate, not verified vessel identity. Missing AIS
     # coverage must never be interpreted as proof of deliberate evasion.
     params = {"lon": item.longitude, "lat": item.latitude, "start": item.observed_at - timedelta(minutes=15),

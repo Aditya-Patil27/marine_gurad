@@ -1,0 +1,12 @@
+﻿# Current execution state
+
+Updated 4 November 2026. `ap` is at `9220682`, 11 commits ahead of `origin/ap`; B's sprint is integrated. Existing uncommitted backend, harness and user changes must be preserved. Historical detailed state is in `docs/PROGRESS_SNAPSHOT_2026-11-04.md`; consult only the relevant section.
+
+- **A-001: partial, blocked on context limit.** An earlier OpenCode session created auth-related files and migration 006, but has not finished or passed review. See `tasks/current.md` for the complete requirements and existing work. Do not treat the code as secure or complete; existing routes remain unauthenticated. Preserve all files and do not reset the runtime database.
+- **OpenCode:** user most recently selected `groq/openai/gpt-oss-120b#medium`; its old session contains 76 messages and exceeded Groq's 8,000 TPM limit. It is inactive. Never resume that large session; use a fresh bounded session only after estimating the whole request, including system and tools, below the limit.
+- **Context preflight:** lean OpenCode probe succeeded with 6,724 input tokens before reading task/progress; adding their measured estimates exceeds 8,000 without safety margin. A-001 has not been retried. Details and limits: `docs/AGENT_HARNESS.md` § Low-TPM context budget.
+- **B integration:** source/mode labels, offline banner, dated evidence, failure states and map fixes are present. B's previous report states 146 frontend tests and a successful build; no new verification is implied. Real GFW/ocean/AIS UI integration and B-16b remain pending.
+- **Backend real-data slices:** GFW historical events/evidence and local Copernicus SST context are implemented; their dates may differ. AISStream subscription had zero positions in sampled windows. Provenance-aware persistence, authenticated case approval and B's weather/report issue H-04 remain pending.
+- **Release gates:** P1, the 10 November judging journey, full P3/P4 and v1 have not passed. SAR point access, boundaries, chlorophyll/effort, GNOME, forecast evaluation and offline workflow remain unverified or pending. Credentials stay local. Dataset details: `docs/DATA_MANIFEST.md`; task order: `PLAN.md` and `tasks/backlog.md`.
+
+User's current priority: reduce unnecessary context while preserving all requirements. Read only this file, `AGENTS.md` and the relevant task brief initially. Inspect relevant reference sections on demand. A-001 must not be retried until the estimated complete request fits the provider limit with a safety margin.

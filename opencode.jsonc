@@ -1,0 +1,37 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "tool_output": {
+    "max_lines": 40,
+    "max_bytes": 1600
+  },
+  "compaction": {
+    "auto": true,
+    "keep": { "tokens": 1200 },
+    "buffer": "15%"
+  },
+  "agents": {
+    "a001-lean": {
+      "mode": "primary",
+      "description": "Bounded A-001 implementation with only relevant skills advertised.",
+      "system": "Implement only the assigned bounded task. Follow repository AGENTS.md, PROGRESS.md and task instructions, preserve existing files and use tools carefully. Report verification and unresolved blockers; do not claim review completion.",
+      "permissions": [
+        { "action": "skill", "resource": "*", "effect": "deny" },
+        { "action": "skill", "resource": "samudra-*", "effect": "allow" },
+        { "action": "skill", "resource": "supabase-postgres-best-practices", "effect": "allow" },
+        { "action": "firecrawl_*", "resource": "*", "effect": "deny" },
+        { "action": "subagent", "resource": "*", "effect": "deny" },
+        { "action": "webfetch", "resource": "*", "effect": "deny" },
+        { "action": "websearch", "resource": "*", "effect": "deny" }
+      ]
+    }
+  },
+  "providers": {
+    "groq": {
+      "models": {
+        "openai/gpt-oss-120b": {
+          "limit": { "output": 256 }
+        }
+      }
+    }
+  }
+}

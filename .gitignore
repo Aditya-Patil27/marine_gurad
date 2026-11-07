@@ -41,3 +41,15 @@ Thumbs.db
 
 # Local Firecrawl research cache
 .firecrawl/
+
+# Local CodeGraph index
+.codegraph/
+
+# Locally downloaded marine data and generated outputs
+apps/api/data/copernicus/
+
+# Local agent execution transcripts and pre-task baselines (may contain source data)
+.agent-runs/
+
+# Regenerable test cache
+.pytest_cache/

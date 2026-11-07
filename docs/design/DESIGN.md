@@ -1,5 +1,7 @@
 # SamudraSense design
 
+> Historical visual reference; retain signed-off styling and User B ownership. Screen-status statements, the synthetic case story and proposed behavior below are not current completion evidence. See [ARCHITECTURE.md](../../ARCHITECTURE.md) and [PROGRESS.md](../../PROGRESS.md). The product plan supersedes old automatic storm escalation, confirmed-illegality, trained SAR and November scope claims. This harness update changes documentation context only, not visual design or frontend code.
+
 Status: **v2 signed off** (17 Sep 2026). v1 was a dark theme and was rejected. Screen 01 (map) is built in `apps/web`; the others are next.
 
 The screens in `screens/` are static HTML mockups with sample data.

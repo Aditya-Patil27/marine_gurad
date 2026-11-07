@@ -60,6 +60,8 @@ class Ping:
     name: Optional[str] = None
     vessel_type: Optional[str] = None
     length: Optional[float] = None
+    source: Optional[str] = None
+    source_mode: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -358,7 +360,7 @@ def explain(
     if factors:
         checks.append(Check(
             "weather", "Bad weather", "not_checked",
-            "No marine weather feed is connected yet, so storm sheltering can't be ruled out.",
+            "The behavioural engine has not checked weather. Separately retrieved weather context is not proof of an offence and does not change this score or evidence state.",
         ))
 
     score = _sum(factors)

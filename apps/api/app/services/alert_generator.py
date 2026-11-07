@@ -92,6 +92,9 @@ class AlertGenerator:
                 v.vessel_type,
                 v.risk_score,
                 v.speed,
+                v.timestamp,
+                v.source,
+                v.source_mode,
                 ST_X(v.location::geometry) as lon,
                 ST_Y(v.location::geometry) as lat,
                 ST_AsGeoJSON(v.location) as vessel_location,
@@ -101,7 +104,8 @@ class AlertGenerator:
                 ST_Distance(v.location::geography, m.boundary::geography) as distance_meters
             FROM (
                 -- Latest position per vessel, so each vessel yields at most one alert
-                SELECT DISTINCT ON (mmsi) mmsi, vessel_type, risk_score, speed, location
+                SELECT DISTINCT ON (mmsi) mmsi, vessel_type, risk_score, speed, location,
+                    timestamp, source, source_mode
                 FROM vessel_tracks
                 WHERE timestamp > NOW() - INTERVAL '1 hour'
                 ORDER BY mmsi, timestamp DESC
@@ -157,6 +161,9 @@ class AlertGenerator:
                 "trajectory": mapping(predicted_trajectory),
                 "lat": row.lat,  # Include coordinates directly
                 "lon": row.lon,  # to avoid N+1 queries
+                "timestamp": row.timestamp,
+                "source": row.source,
+                "source_mode": row.source_mode,
             }
             
             if is_currently_inside:

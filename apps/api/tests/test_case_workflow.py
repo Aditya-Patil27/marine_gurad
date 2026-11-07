@@ -34,13 +34,29 @@ def test_weather_does_not_downgrade_when_provider_fails(monkeypatch):
     assert "no alert was downgraded" in result["reason"]
 
 
+def test_case_status_transition_payload_bounds_notes_and_route_dependency_order():
+    from app.api import auth as auth_api
+    from app.api.cases import StatusTransition
+    from app.main import app
+
+    assert StatusTransition(expected_version=0, note=" reviewed ").note == " reviewed "
+    with pytest.raises(ValueError):
+        StatusTransition(expected_version=0, note="x" * 501)
+    for path in ("/api/v1/cases/{case_id}/close", "/api/v1/cases/{case_id}/reopen"):
+        route = next(item for item in app.routes if getattr(item, "path", None) == path)
+        dependencies = [dependency.call for dependency in route.dependant.dependencies]
+        assert dependencies[:2] == [auth_api.require_analyst, auth_api.csrf_protect]
+
+
 @pytest.mark.skipif(not os.getenv("TEST_DATABASE_URL"), reason="requires a migrated test database with demo data")
 def test_report_snapshot_signoff_and_tamper_detection():
     from fastapi.testclient import TestClient
     from sqlalchemy import create_engine, text
-    from sqlalchemy.orm import Session
+    from sqlmodel import Session
+    from app.api import auth as auth_api
     from app.database import get_db
     from app.main import app
+    from app.services import auth as auth_service
 
     engine = create_engine(os.environ["TEST_DATABASE_URL"])
     with engine.connect() as connection:
@@ -48,32 +64,42 @@ def test_report_snapshot_signoff_and_tamper_detection():
         session = Session(bind=connection, join_transaction_mode="create_savepoint")
         app.dependency_overrides[get_db] = lambda: session
         try:
+            auth_service.reset_login_throttle()
+            auth_service.create_admin_user(session, "report_admin", "correcthorse123")
             with TestClient(app) as client:
-                response = client.post("/api/v1/reports/", json={"mmsi": 419007431})
+                login = client.post(
+                    "/api/v1/auth/login",
+                    json={"username": "report_admin", "password": "correcthorse123"},
+                )
+                assert login.status_code == 200, login.text
+                csrf = {auth_api.CSRF_HEADER: login.json()["csrf_token"]}
+
+                response = client.post("/api/v1/reports/", json={"mmsi": 419007431}, headers=csrf)
                 assert response.status_code == 201, response.text
                 created = response.json()
                 assert created["integrity_ok"] and created["snapshot"]["track"]
                 vessel = created["snapshot"]
                 detection = {"observed_at": vessel["last_seen"], "latitude": vessel["position"]["lat"],
                              "longitude": vessel["position"]["lon"], "source": "test fixture", "scene_id": "test-scene"}
-                sar = client.post("/api/v1/sar/detections", json=detection)
+                sar = client.post("/api/v1/sar/detections", json=detection, headers=csrf)
                 assert sar.status_code == 201, sar.text
                 assert sar.json()["matched_mmsi"] == vessel["mmsi"]
-                with_sar = client.post("/api/v1/reports/", json={"mmsi": vessel["mmsi"]})
+                with_sar = client.post("/api/v1/reports/", json={"mmsi": vessel["mmsi"]}, headers=csrf)
                 assert with_sar.status_code == 201
                 assert with_sar.json()["snapshot"]["sar_candidates"][0]["scene_id"] == "test-scene"
                 detection.update(latitude=0, longitude=0)
-                unmatched = client.post("/api/v1/sar/detections", json=detection)
+                unmatched = client.post("/api/v1/sar/detections", json=detection, headers=csrf)
                 assert unmatched.status_code == 201 and unmatched.json()["matched_mmsi"] is None
                 report_id = created["id"]
-                assert client.post(f"/api/v1/reports/{report_id}/sign", json={"officer": "", "reviewed": True}).status_code == 422
-                assert client.post(f"/api/v1/reports/{report_id}/sign", json={"officer": "Reviewer", "reviewed": False}).status_code == 400
-                signed = client.post(f"/api/v1/reports/{report_id}/sign", json={"officer": "Reviewer", "reviewed": True})
-                assert signed.status_code == 200 and signed.json()["signed_by"] == "Reviewer"
-                assert client.post(f"/api/v1/reports/{report_id}/sign", json={"officer": "Reviewer", "reviewed": True}).status_code == 409
+                assert client.post(f"/api/v1/reports/{report_id}/sign", json={"officer": "", "reviewed": True}, headers=csrf).status_code == 422
+                assert client.post(f"/api/v1/reports/{report_id}/sign", json={"officer": "Reviewer", "reviewed": False}, headers=csrf).status_code == 400
+                signed = client.post(f"/api/v1/reports/{report_id}/sign", json={"officer": "Reviewer", "reviewed": True}, headers=csrf)
+                assert signed.status_code == 200 and signed.json()["signed_by"] == "report_admin"
+                assert client.post(f"/api/v1/reports/{report_id}/sign", json={"officer": "Reviewer", "reviewed": True}, headers=csrf).status_code == 409
                 connection.execute(text("UPDATE incident_reports SET sha256 = :hash WHERE id = :id"), {"hash": "0" * 64, "id": report_id})
                 assert not next(r for r in client.get("/api/v1/reports/").json() if r["id"] == report_id)["integrity_ok"]
         finally:
+            auth_service.reset_login_throttle()
             app.dependency_overrides.clear()
             session.close()
             transaction.rollback()

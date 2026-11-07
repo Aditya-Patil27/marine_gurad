@@ -11,7 +11,11 @@ pydantic==2.10.4
 pydantic-settings==2.7.1
 python-multipart==0.0.20
 httpx>=0.24.0
+websockets>=13,<16
 supabase==2.16.0
+
+# Local authentication: maintained Argon2id password hashing (no custom crypto)
+argon2-cffi==23.1.0
 
 # Google Gemini SDK (google-generativeai is deprecated and lacked the APIs chatbot.py uses)
 google-genai==1.75.0

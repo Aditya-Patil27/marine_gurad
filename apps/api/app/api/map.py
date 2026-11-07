@@ -98,7 +98,9 @@ def get_vessels_layer(bbox: Optional[BoundingBox], db: Session):
                 width,
                 draft,
                 cargo,
-                transceiver_class
+                transceiver_class,
+                source,
+                source_mode
             FROM vessel_tracks
             WHERE timestamp > NOW() - INTERVAL '1 hour'
             AND ST_Intersects(
@@ -130,7 +132,9 @@ def get_vessels_layer(bbox: Optional[BoundingBox], db: Session):
                 width,
                 draft,
                 cargo,
-                transceiver_class
+                transceiver_class,
+                source,
+                source_mode
             FROM vessel_tracks
             WHERE timestamp > NOW() - INTERVAL '1 hour'
             ORDER BY mmsi, timestamp DESC
@@ -182,6 +186,8 @@ def get_vessels_layer(bbox: Optional[BoundingBox], db: Session):
                 "draft": row.draft,
                 "cargo": row.cargo,
                 "transceiver_class": row.transceiver_class,
+                "source": row.source,
+                "source_mode": row.source_mode,
             }
         }
         for row in result

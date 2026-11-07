@@ -2,6 +2,8 @@
 
 Plan updated: 3 November 2026. All deadlines are 18:00 India Standard Time (IST).
 
+Harness audit, 4 November 2026: this remains the canonical F01–F14 specification, ownership allocation and deadline schedule. Start execution with [PLAN.md](../PLAN.md), [PROGRESS.md](../PROGRESS.md) and [the current task](../tasks/current.md); they map this plan to actual implementation. Section 2 is a dated starting-point snapshot, not current completion evidence. P1 and the judging gate have not passed. Shared operating instructions are now in [AGENTS.md](../AGENTS.md).
+
 Owner: Team Code4Seas. Team size: two people; an optional third person has a separate work area.
 
 The judging demo is due 10 November. The team will pull a real-data slice of phases 3 and 4 into that demo using the accelerated schedule in section 8. The complete phase 3 and 4 requirements remain due 20 November and 2 December respectively; tested v1 is due 11 December 2026. A pilot review is due 8 January 2027, ahead of the README's 20–21 January finale.

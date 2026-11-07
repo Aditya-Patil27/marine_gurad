@@ -2,7 +2,7 @@
 
 Status: **draft for team review** (13 Oct 2026, update 7), written by the planning session. Section 13 lists what changed since the first draft.
 
-This is the only planning file. It holds the current-state baseline, the scope for the 10 Nov 2026 submission, the epics, the first stories, the dependency map, the decision log, the open questions and the split of the work into Frontend, Backend and AI parts. The product description stays in [README.md](../../README.md) and the screen designs stay in [docs/design/DESIGN.md](../design/DESIGN.md); this file does not repeat them.
+Historical design proposal, superseded for execution by ../../PLAN.md and ../FINAL_PRODUCT_PLAN.md. This file retains earlier decisions and is not an active task queue. It holds the current-state baseline, the scope for the 10 Nov 2026 submission, the epics, the first stories, the dependency map, the decision log, the open questions and the split of the work into Frontend, Backend and AI parts. The product description stays in [README.md](../../README.md) and the screen designs stay in [docs/design/DESIGN.md](../design/DESIGN.md); this file does not repeat them.
 
 Sections 4 to 8 are proposals. Nothing in them is approved until section 9 records the decision. Until then the Backend and Frontend sessions inspect and report; they do not build from these stories.
 
