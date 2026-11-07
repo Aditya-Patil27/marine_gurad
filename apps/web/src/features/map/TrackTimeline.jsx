@@ -17,7 +17,9 @@ export default function TrackTimeline({ detail }) {
     return () => ro.disconnect()
   }, [])
 
-  const end = new Date(detail.generated_at).getTime()
+  const historical = detail.window?.mode === 'historical'
+  // A historical track ends at the selected window end, not at the wall clock when it was fetched.
+  const end = new Date(historical ? detail.window.end : detail.generated_at).getTime()
   const start = end - WINDOW_H * 3600e3
   const x = (iso) => {
     const t = Math.min(end, Math.max(start, new Date(iso).getTime()))
@@ -33,7 +35,9 @@ export default function TrackTimeline({ detail }) {
   const silent = longest && longest.hours >= 1 ? longest : null
 
   // The picture is one image to a screen reader, so the label has to carry what it shows
-  const spoken = [`Last ${WINDOW_H} hours of AIS for ${vesselName(detail)}`]
+  const spoken = [
+    `${historical ? `Last ${WINDOW_H} hours of the selected historical window` : `Last ${WINDOW_H} hours`} of AIS for ${vesselName(detail)}`,
+  ]
   if (silent) {
     const when = silent.open ? `since ${timeIST(silent.start)}` : `from ${timeIST(silent.start)} to ${timeIST(silent.end)}`
     spoken.push(`AIS silent ${hoursLabel(silent.hours)} ${when}`)
@@ -84,7 +88,7 @@ export default function TrackTimeline({ detail }) {
             fontFamily="IBM Plex Mono"
             textAnchor={i === 0 ? 'start' : i === 4 ? 'end' : 'middle'}
           >
-            {i === 4 ? 'Now' : timeIST(new Date(t).toISOString())}
+            {i === 4 ? (historical ? 'Window end' : 'Now') : timeIST(new Date(t).toISOString())}
           </text>
         ))}
       </svg>

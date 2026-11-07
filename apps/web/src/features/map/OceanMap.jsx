@@ -97,7 +97,7 @@ function tag(text, className = '') {
   return el
 }
 
-export default function OceanMap({ vessels, zones, detail, showZones, showAll, onSelect, openedOn }) {
+export default function OceanMap({ vessels, zones, detail, showZones, showAll, onSelect, openedOn, historicalEvents }) {
   const container = useRef(null)
   const map = useRef(null)
   const markers = useRef([])
@@ -132,6 +132,15 @@ export default function OceanMap({ vessels, zones, detail, showZones, showAll, o
       m.addSource('track', { type: 'geojson', data: EMPTY })
       m.addLayer({ id: 'track-on', type: 'line', source: 'track', filter: ['==', ['get', 'kind'], 'on'], layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#08337F', 'line-width': 3, 'line-opacity': 0.85 } })
       m.addLayer({ id: 'track-gap', type: 'line', source: 'track', filter: ['==', ['get', 'kind'], 'gap'], paint: { 'line-color': '#D64545', 'line-width': 2.5, 'line-dasharray': [1, 2.5] } })
+
+      m.addSource('historical-events', { type: 'geojson', data: EMPTY })
+      m.addLayer({ id: 'historical-events-points', type: 'circle', source: 'historical-events', paint: { 'circle-radius': 5, 'circle-color': '#e18a18', 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 1.5 } })
+      m.on('click', 'historical-events-points', (e) => {
+        const p = e.features[0].properties
+        const content = document.createElement('div')
+        content.textContent = `Historical apparent fishing event · ${p.vessel_name || p.mmsi || 'Unknown vessel'} · ${p.start || 'Time unavailable'} · Not a live position or proof of an offence.`
+        new maplibregl.Popup().setLngLat(e.lngLat).setDOMContent(content).addTo(m)
+      })
 
       m.addSource('vessels', { type: 'geojson', data: EMPTY })
       m.addLayer({
@@ -178,6 +187,10 @@ export default function OceanMap({ vessels, zones, detail, showZones, showAll, o
     })
     return () => m.remove()
   }, [])
+
+  useEffect(() => {
+    if (ready) map.current.getSource('historical-events').setData(historicalEvents ?? EMPTY)
+  }, [ready, historicalEvents])
 
   useEffect(() => {
     if (!ready) return

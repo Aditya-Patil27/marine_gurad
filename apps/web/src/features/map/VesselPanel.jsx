@@ -1,7 +1,10 @@
-import { Link } from 'react-router-dom'
+import { useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { CircleAlert, CircleCheck, CircleHelp, CircleMinus, X } from 'lucide-react'
-import { isNotFound } from '../../lib/api'
+import { isNotFound, reportsApi } from '../../lib/api'
+import { formatEnvironmentalReading } from '../../lib/environment'
 import { CLEARS, dateTimeIST, levelStyle, score, sourceLabel, vesselName, vesselType, withDisplayNames } from '../../lib/format'
+import ObservationWindowNotice from '../../components/ObservationWindowNotice'
 
 const CHECK_ICON = {
   ruled_out: { Icon: CircleCheck, className: 'text-risk-green', label: 'Ruled out' },
@@ -39,14 +42,37 @@ function ClearIf({ clearIf }) {
   )
 }
 
-export default function VesselPanel({ detail, mmsi, error, loading, onClose, onRetry, names }) {
+export default function VesselPanel({ detail, mmsi, error, loading, onClose, onRetry, names, environmental, window: selectedWindow }) {
+  const [drafting, setDrafting] = useState(false)
+  const [draftError, setDraftError] = useState('')
+  const navigate = useNavigate()
+  const bounds = selectedWindow?.mode === 'historical' ? selectedWindow : null
+
+  async function handleDraftReport() {
+    if (drafting) return
+    setDrafting(true)
+    setDraftError('')
+    try {
+      const r = await reportsApi.create(Number(detail.mmsi), null, bounds)
+      navigate(`/reports?id=${r.id}`)
+    } catch {
+      setDraftError('Could not create an evidence snapshot. Check the API and database migration.')
+    } finally {
+      setDrafting(false)
+    }
+  }
+
   if (!detail && error && !loading) {
     // Only a 404 means the vessel is missing; anything else is the connection, and worth another try
     const missing = isNotFound(error)
     return (
       <aside className="card absolute right-5 top-[76px] z-10 w-[400px] p-5" aria-label="Vessel details">
         <p role="alert" className="text-muted">
-          {missing ? `No positions for MMSI ${mmsi} in the last 24 h.` : "Can't reach the API, so this vessel's details didn't load."}
+          {missing
+            ? selectedWindow?.mode === 'historical'
+              ? `No observations for MMSI ${mmsi} in the selected historical window.`
+              : `No positions for MMSI ${mmsi} in the last 24 h.`
+            : "Can't reach the API, so this vessel's details didn't load."}
         </p>
         <div className="mt-4 flex gap-2.5">
           {!missing && <button type="button" className="btn btn-primary" onClick={onRetry}>Try again</button>}
@@ -66,6 +92,7 @@ export default function VesselPanel({ detail, mmsi, error, loading, onClose, onR
   const level = levelStyle(detail.level)
   const scale = Math.max(...Object.values(detail.max_points))
   const meta = [vesselType(detail.vessel_type), detail.length && `${detail.length} m`].filter(Boolean).join(' · ')
+  const envReading = formatEnvironmentalReading(environmental)
 
   return (
     <aside className="card absolute right-5 top-[76px] z-10 flex max-h-[calc(100%-96px)] w-[400px] flex-col overflow-hidden" aria-labelledby="vessel-title">
@@ -89,7 +116,22 @@ export default function VesselPanel({ detail, mmsi, error, loading, onClose, onR
             {meta} · <span className="num text-[12.5px]">MMSI {detail.mmsi}</span>
           </div>
           <div className="text-[13px] text-faint">Last position {dateTimeIST(detail.last_seen)}</div>
-          <div className="text-[13px] text-faint">AIS data: {sourceLabel(detail)}</div>
+          <div className="text-[13px] text-faint">
+            AIS data: {sourceLabel(detail)}
+            {detail.source ? ` · stored source: ${detail.source}` : ''}
+          </div>
+          <ObservationWindowNotice window={selectedWindow} className="mt-2" />
+          <div className="text-[13px] text-faint">
+            {envReading ? (
+              <Link to={`/map?vessel=${detail.mmsi}#environmental-context`} className="text-navy hover:underline">
+                Regional ocean context ({envReading.dateIST})
+              </Link>
+            ) : (
+              <Link to={`/map?vessel=${detail.mmsi}#environmental-context`} className="text-muted hover:underline">
+                Regional ocean context (Environmental data not available)
+              </Link>
+            )}
+          </div>
         </div>
 
         <div className="flex items-center gap-3 border-t border-line px-5 pb-1.5 pt-3.5">
@@ -109,7 +151,9 @@ export default function VesselPanel({ detail, mmsi, error, loading, onClose, onR
               ))}
             </>
           ) : (
-            <p className="py-2 text-[13.5px] text-muted">Nothing unusual in the last 24 hours.</p>
+            <p className="py-2 text-[13.5px] text-muted">
+              {selectedWindow?.mode === 'historical' ? 'Nothing unusual in the selected window.' : 'Nothing unusual in the last 24 hours.'}
+            </p>
           )}
         </div>
 
@@ -135,9 +179,17 @@ export default function VesselPanel({ detail, mmsi, error, loading, onClose, onR
         {detail.clear_if && <ClearIf clearIf={detail.clear_if} />}
       </div>
 
+      {draftError && (
+        <p role="alert" className="border-t border-line px-5 py-2 text-sm text-risk-red">
+          {draftError}
+        </p>
+      )}
+
       <div className="flex gap-2.5 border-t border-line px-5 pb-[18px] pt-3.5">
         <Link to={`/vessels/${detail.mmsi}`} className="btn btn-primary flex-1">Open evidence</Link>
-        <Link to={`/vessels/${detail.mmsi}`} className="btn">Draft report</Link>
+        <button type="button" className="btn" disabled={drafting} onClick={handleDraftReport}>
+          Draft report
+        </button>
       </div>
     </aside>
   )

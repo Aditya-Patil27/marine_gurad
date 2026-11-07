@@ -1,16 +1,20 @@
-import { Component, useSyncExternalStore } from 'react'
+import { Component, useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
-import { Bell, Droplet, FileText, Map, Settings, Ship } from 'lucide-react'
-import { vesselsApi } from '../lib/api'
+import { Bell, Briefcase, Droplet, FileText, Map, Settings, Ship } from 'lucide-react'
+import { authApi, vesselsApi } from '../lib/api'
 import usePolling from '../lib/usePolling'
+import useOnline from '../lib/useOnline'
 import { sourceLabel, timeIST } from '../lib/format'
+import { useReplayWindow } from '../lib/replayWindow'
 import Logo from './Logo'
+import ReplayWindowControl from './ReplayWindowControl'
 
 const NAV = [
   { to: '/map', label: 'Map', icon: Map },
   { to: '/alerts', label: 'Alerts', icon: Bell, badge: true },
   { to: '/vessels', label: 'Vessels', icon: Ship },
   { to: '/reports', label: 'Reports', icon: FileText },
+  { to: '/cases', label: 'Cases', icon: Briefcase },
   { to: '/spills', label: 'Spills', icon: Droplet },
 ]
 
@@ -61,19 +65,8 @@ class PageBoundary extends Component {
   }
 }
 
-function subscribeOnline(callback) {
-  window.addEventListener('online', callback)
-  window.addEventListener('offline', callback)
-  return () => {
-    window.removeEventListener('online', callback)
-    window.removeEventListener('offline', callback)
-  }
-}
-
-const getOnlineSnapshot = () => navigator.onLine
-
 function DataModeBanner({ fleet }) {
-  const isOnline = useSyncExternalStore(subscribeOnline, getOnlineSnapshot)
+  const isOnline = useOnline()
   const isOffline = !isOnline
 
   let text
@@ -109,9 +102,43 @@ function DataModeBanner({ fleet }) {
   )
 }
 
+function Account() {
+  const [user, setUser] = useState(null)
+  const [open, setOpen] = useState(false)
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+  useEffect(() => { authApi.me().then(setUser).catch(() => setUser(null)) }, [])
+  async function login(event) {
+    event.preventDefault()
+    setError('')
+    try {
+      const result = await authApi.login(username, password)
+      setUser(result.user); setPassword(''); setOpen(false)
+      window.location.reload()
+    } catch { setPassword(''); setError('Sign-in failed. Check your account and password.') }
+  }
+  async function logout() {
+    try { await authApi.logout(); setUser(null); window.location.reload() }
+    catch { setError('Sign-out failed. Please try again.') }
+  }
+  return <div className="relative border-b border-line bg-white px-4 py-1 text-right text-sm">
+    {user ? <span>Signed in as {user.username} ({user.roles?.join(', ')}) <button className="ml-2 underline" onClick={logout}>Sign out</button></span>
+      : <button className="underline" onClick={() => setOpen(!open)}>Sign in to create or review reports</button>}
+    {error && <span role="alert" className="ml-2 text-risk-red">{error}</span>}
+    {open && !user && <form onSubmit={login} className="absolute right-4 top-8 z-50 grid w-72 gap-2 rounded bg-white p-4 text-left shadow-lg">
+      <label>Username<input autoComplete="username" className="w-full rounded border p-1" value={username} onChange={e => setUsername(e.target.value)} required /></label>
+      <label>Password<input type="password" autoComplete="current-password" className="w-full rounded border p-1" value={password} onChange={e => setPassword(e.target.value)} required /></label>
+      <button className="btn btn-primary" type="submit">Sign in</button>
+    </form>}
+  </div>
+}
+
 export default function Shell() {
-  // The fleet is shared by the rail badge and every page, refreshed every 30 s
-  const fleet = usePolling(() => vesselsApi.list(24), 30000)
+  const { bounds, key: windowKey } = useReplayWindow()
+  // The fleet is shared by the rail badge and every page, refreshed every 30 s.
+  // Changing the window drops the previous answer instead of letting it repaint.
+  const fleet = usePolling(() => vesselsApi.list(168, bounds), 30000, [windowKey])
   const flagged = fleet.data?.vessels.filter((v) => v.level === 'high').length ?? 0
   const { pathname } = useLocation()
 
@@ -128,6 +155,8 @@ export default function Shell() {
       </nav>
       <div className="flex min-h-0 min-w-0 flex-col">
         <DataModeBanner fleet={fleet} />
+        <ReplayWindowControl />
+        <Account />
         <main className="relative min-h-0 min-w-0 flex-1">
         {/* Keyed by page, so opening another one leaves the failure behind */}
         <PageBoundary key={pathname}>

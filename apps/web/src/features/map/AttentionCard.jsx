@@ -3,14 +3,17 @@ import { CircleAlert } from 'lucide-react'
 import StateGlyph from '../../components/StateGlyph'
 import { levelStyle, score, timeIST, withDisplayNames } from '../../lib/format'
 
-export default function AttentionCard({ vessels, allVessels, selectedMmsi, onSelect, loading, error, updatedAt, onRetry }) {
+export default function AttentionCard({ vessels, allVessels, selectedMmsi, onSelect, loading, error, updatedAt, onRetry, window }) {
   // Until the first answer there is no list to count; after it, a failed refresh makes the list old, not empty
   const loaded = Boolean(updatedAt)
   const failed = !loaded && error && !loading
   const staleSince = loaded && error ? timeIST(updatedAt) : null
+  const historical = window?.mode === 'historical'
 
-  let empty = allVessels.length ? 'Nothing needs attention in the last 24 h.' : 'No vessel has reported in the last 24 h.'
-  if (staleSince) empty = allVessels.length ? `Nothing needed attention at ${staleSince}.` : `No vessel had reported at ${staleSince}.`
+  let empty = historical
+    ? 'No observations in the selected historical window.'
+    : allVessels.length ? 'Nothing needs attention in the last 24 h.' : 'No vessel has reported in the last 24 h.'
+  if (staleSince) empty = historical ? `No observations were recorded at ${staleSince}.` : allVessels.length ? `Nothing needed attention at ${staleSince}.` : `No vessel had reported at ${staleSince}.`
 
   return (
     <section className="card absolute left-5 top-[76px] z-10 flex max-h-[calc(100%-200px)] w-[340px] flex-col overflow-hidden" aria-labelledby="attention-title">

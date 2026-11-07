@@ -3,8 +3,8 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '@/App'
-import { mapApi, sarApi, vesselsApi, weatherApi } from '@/lib/api'
-import { fleet, httpError, networkError, seaPearlDetail } from './fixtures'
+import { environmentApi, mapApi, reportsApi, sarApi, vesselsApi, weatherApi } from '@/lib/api'
+import { fleet, httpError, networkError, regionalEnvironment, seaPearlDetail } from './fixtures'
 
 // MapLibre needs WebGL, which jsdom doesn't have; the map itself is checked in a browser
 vi.mock('@/features/map/OceanMap', () => ({ default: () => null }))
@@ -14,6 +14,7 @@ vi.mock('@/lib/api', async (original) => ({
   mapApi: { zones: vi.fn() },
   weatherApi: { vessel: vi.fn() },
   sarApi: { detections: vi.fn() },
+  environmentApi: { regional: vi.fn() },
 }))
 
 const ZONES = { type: 'FeatureCollection', features: [] }
@@ -52,11 +53,38 @@ beforeEach(() => {
   mapApi.zones.mockReset().mockResolvedValue(ZONES)
   weatherApi.vessel.mockReset().mockResolvedValue({ status: 'unavailable', reason: 'Weather service unavailable.' })
   sarApi.detections.mockReset().mockResolvedValue([])
+  environmentApi.regional.mockReset().mockRejectedValue(new Error('Endpoint not available'))
 })
 
 afterEach(() => vi.useRealTimers())
 
 describe('map page', () => {
+  it('keeps the vessel open when its panel links to the regional value', async () => {
+    environmentApi.regional.mockResolvedValue(regionalEnvironment)
+    await open('/map?vessel=419007431')
+
+    fireEvent.click(screen.getByRole('link', { name: /Regional ocean context/ }))
+    await settle()
+
+    expect(screen.getByRole('complementary', { name: /Sea Pearl II/ })).toBeTruthy()
+  })
+
+  it('does not carry a failed draft report over to the next vessel', async () => {
+    const create = vi.spyOn(reportsApi, 'create').mockRejectedValue(httpError(500))
+    vesselsApi.get.mockImplementation(async (mmsi) => ({ ...seaPearlDetail, mmsi }))
+    await open('/map?vessel=419007431')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Draft report' }))
+    await settle()
+    expect(screen.getByRole('alert').textContent).toContain('Could not create an evidence snapshot')
+
+    fireEvent.click(screen.getByText(/Lakshmi Matha jumped/))
+    await settle()
+
+    expect(screen.queryByText(/Could not create an evidence snapshot/)).toBeNull()
+    create.mockRestore()
+  })
+
   it('lists the vessels that need attention', async () => {
     await open('/map')
 
@@ -302,6 +330,54 @@ describe('map page', () => {
 
       expect(dot().className).toContain('bg-faint')
       expect(dot().className).not.toContain('bg-risk-green')
+    })
+
+    it('renders green dot online with live data, grey dot offline with live data, and red dot offline with fleet.error (B-16b)', async () => {
+      const liveFleet = { ...fleet, data_mode: 'live' }
+      const onlineSpy = vi.spyOn(window.navigator, 'onLine', 'get').mockReturnValue(true)
+      vesselsApi.list.mockResolvedValue(liveFleet)
+      await open('/map')
+
+      // 1. Online with live data: green
+      expect(dot().className).toContain('bg-risk-green')
+      expect(dot().className).not.toContain('bg-faint')
+
+      // 2. Offline with live data: grey (bg-faint)
+      onlineSpy.mockReturnValue(false)
+      act(() => {
+        window.dispatchEvent(new Event('offline'))
+      })
+      expect(dot().className).toContain('bg-faint')
+      expect(dot().className).not.toContain('bg-risk-green')
+
+      // 3. Offline with fleet.error: red (bg-risk-red)
+      vesselsApi.list.mockRejectedValue(networkError())
+      await settle(30000)
+      expect(dot().className).toContain('bg-risk-red')
+      expect(dot().className).not.toContain('bg-faint')
+    })
+  })
+
+  describe('regional environmental value (B-07)', () => {
+    it('shows environmental data not available when endpoint fails or has no data', async () => {
+      environmentApi.regional.mockRejectedValue(new Error('404 Not Found'))
+      await open('/map')
+
+      const envBox = screen.getByRole('region', { name: 'Regional environmental conditions' })
+      expect(envBox.textContent).toContain('Environmental data not available')
+      expect(envBox.textContent).not.toContain('29.4')
+    })
+
+    it('shows value, unit, date with labelled timezone, and attribution from regional environment fixture', async () => {
+      environmentApi.regional.mockResolvedValue(regionalEnvironment)
+      await open('/map')
+
+      const envBox = screen.getByRole('region', { name: 'Regional environmental conditions' })
+      expect(envBox.textContent).toContain('29.4')
+      expect(envBox.textContent).toContain('°C')
+      expect(envBox.textContent).toContain('13 Oct 2026, 11:30 IST')
+      expect(envBox.textContent).toContain('Copernicus Marine Service')
+      expect(envBox.textContent).not.toContain('Environmental data not available')
     })
   })
 })

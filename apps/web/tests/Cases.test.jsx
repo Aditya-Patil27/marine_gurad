@@ -1,9 +1,9 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AlertsPage, EvidencePage, ReportsPage } from '@/pages/Cases'
-import { reportsApi, sarApi, vesselsApi, weatherApi } from '@/lib/api'
-import { fleet, httpError, networkError, seaPearlDetail } from './fixtures'
+import { environmentApi, reportsApi, sarApi, vesselsApi, weatherApi } from '@/lib/api'
+import { fleet, httpError, networkError, regionalEnvironment, seaPearlDetail } from './fixtures'
 
 vi.mock('@/lib/api', async (original) => ({
   ...(await original()),
@@ -11,6 +11,7 @@ vi.mock('@/lib/api', async (original) => ({
   reportsApi: { list: vi.fn(), create: vi.fn(), sign: vi.fn() },
   weatherApi: { vessel: vi.fn() },
   sarApi: { detections: vi.fn() },
+  environmentApi: { regional: vi.fn() },
 }))
 
 const sampleReport = {
@@ -70,6 +71,7 @@ beforeEach(() => {
   vi.resetAllMocks()
   weatherApi.vessel.mockResolvedValue({ status: 'unavailable', reason: 'Weather service unavailable.' })
   sarApi.detections.mockResolvedValue([])
+  environmentApi.regional.mockResolvedValue(regionalEnvironment)
 })
 
 describe('Cases / EvidencePage & ReportsPage', () => {
@@ -783,5 +785,242 @@ describe('Cases / EvidencePage & ReportsPage', () => {
     reportsApi.list.mockResolvedValue([sampleReport])
     await openReports('/reports')
     expect(document.body.textContent).not.toContain('IST IST')
+  })
+
+  it('discards sign-off rejection arriving after switching to report #2 while still showing on report #1 (B-16b)', async () => {
+    let rejectSign
+    reportsApi.list.mockResolvedValue([sampleReport, sampleReport2])
+    reportsApi.sign.mockImplementation(
+      () =>
+        new Promise((_, reject) => {
+          rejectSign = reject
+        }),
+    )
+
+    await openReports('/reports?id=1')
+
+    const officerInput = screen.getByLabelText(/Officer name/)
+    const checkbox = screen.getByLabelText(/I reviewed the evidence/)
+    const signBtn = screen.getByRole('button', { name: 'Record sign-off' })
+
+    fireEvent.change(officerInput, { target: { value: 'Officer Rao' } })
+    fireEvent.click(checkbox)
+
+    fireEvent.click(signBtn)
+    expect(reportsApi.sign).toHaveBeenCalledWith(1, 'Officer Rao', true)
+
+    const report2Link = screen.getByRole('link', { name: /#2/ })
+    await act(async () => {
+      fireEvent.click(report2Link)
+    })
+
+    expect(screen.getByText('REPORT #2 · Awaiting review')).toBeTruthy()
+
+    await act(async () => {
+      rejectSign(new Error('Sign-off failed on server'))
+    })
+
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('records a sign-off that succeeds after the officer opened report #2 on report #1', async () => {
+    let resolveSign
+    reportsApi.list.mockResolvedValue([sampleReport, sampleReport2])
+    reportsApi.sign.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveSign = resolve
+        }),
+    )
+
+    await openReports('/reports?id=1')
+
+    fireEvent.change(screen.getByLabelText(/Officer name/), { target: { value: 'Officer Rao' } })
+    fireEvent.click(screen.getByLabelText(/I reviewed the evidence/))
+    fireEvent.click(screen.getByRole('button', { name: 'Record sign-off' }))
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('link', { name: /#2/ }))
+    })
+
+    reportsApi.list.mockResolvedValue([
+      { ...sampleReport, signed_by: 'Officer Rao', signed_at: '2026-10-13T08:00:00Z' },
+      sampleReport2,
+    ])
+    await act(async () => {
+      resolveSign({})
+    })
+
+    expect(screen.getByText('REPORT #2 · Awaiting review')).toBeTruthy()
+    expect(screen.queryByRole('alert')).toBeNull()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('link', { name: /#1/ }))
+    })
+
+    expect(screen.getByText(/Signed by Officer Rao/)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Record sign-off' })).toBeNull()
+  })
+
+  it('shows sign-off rejection that arrives while report #1 is still open (B-16b)', async () => {
+    let rejectSign
+    reportsApi.list.mockResolvedValue([sampleReport, sampleReport2])
+    reportsApi.sign.mockImplementation(
+      () =>
+        new Promise((_, reject) => {
+          rejectSign = reject
+        }),
+    )
+
+    await openReports('/reports?id=1')
+
+    const officerInput = screen.getByLabelText(/Officer name/)
+    const checkbox = screen.getByLabelText(/I reviewed the evidence/)
+    const signBtn = screen.getByRole('button', { name: 'Record sign-off' })
+
+    fireEvent.change(officerInput, { target: { value: 'Officer Rao' } })
+    fireEvent.click(checkbox)
+
+    fireEvent.click(signBtn)
+
+    await act(async () => {
+      rejectSign(new Error('Sign-off failed on server'))
+    })
+
+    expect(screen.getByRole('alert').textContent).toContain('Could not sign report.')
+  })
+
+  it('shows display name in evidence factor detail and report factor row when detail contains raw name (B-16b)', async () => {
+    const detailWithRawName = {
+      ...seaPearlDetail,
+      factors: [
+        {
+          key: 'encounter',
+          label: 'Close encounter',
+          detail: 'Met HAI FENG 818 at 0.4 km',
+          points: 0.18,
+          max_points: 0.18,
+        },
+      ],
+      encounters: [
+        { mmsi: 412000000, name: 'HAI FENG 818', closest_m: 400, hours: 2.5 },
+      ],
+    }
+
+    vesselsApi.get.mockResolvedValue(detailWithRawName)
+    await openEvidence('419007431')
+    const evidenceFactorDetail = screen.getByText('Met Hai Feng 818 at 0.4 km')
+    expect(evidenceFactorDetail).toBeTruthy()
+    expect(evidenceFactorDetail.textContent).not.toContain('HAI FENG 818')
+
+    cleanup()
+
+    reportsApi.list.mockResolvedValue([
+      {
+        ...sampleReport,
+        snapshot: detailWithRawName,
+      },
+    ])
+    await openReports('/reports?id=1')
+    const reportFactorRow = screen.getByText(/Met Hai Feng 818 at 0.4 km/).closest('div')
+    expect(reportFactorRow.textContent).toContain('Met Hai Feng 818 at 0.4 km')
+    expect(reportFactorRow.textContent).not.toContain('HAI FENG 818')
+    const pre = document.querySelector('pre')
+    expect(pre.textContent).toContain('HAI FENG 818')
+  })
+
+  it('links to environmental value on evidence with date and context-only wording (B-08)', async () => {
+    vesselsApi.get.mockResolvedValue(seaPearlDetail)
+    environmentApi.regional.mockResolvedValue(regionalEnvironment)
+    await openEvidence('419007431')
+
+    const link = screen.getByRole('link', { name: /Regional ocean context \(13 Oct 2026, 11:30 IST\)/ })
+    expect(link).toBeTruthy()
+    expect(link.getAttribute('href')).toBe('/map#environmental-context')
+    expect(link.textContent).not.toMatch(/caused by|because of/i)
+  })
+
+  it('shows fallback link when environmental data is unavailable on evidence (B-08)', async () => {
+    vesselsApi.get.mockResolvedValue(seaPearlDetail)
+    environmentApi.regional.mockRejectedValue(new Error('Network error'))
+    await openEvidence('419007431')
+
+    const link = screen.getByRole('link', { name: /Regional ocean context \(Environmental data not available\)/ })
+    expect(link).toBeTruthy()
+    expect(link.getAttribute('href')).toBe('/map#environmental-context')
+  })
+
+  it('shows data limitations beside rule factors on evidence (B-09)', async () => {
+    vesselsApi.get.mockResolvedValue({
+      ...seaPearlDetail,
+      limitations: [{ key: 'radar', label: 'Radar gap', detail: 'No coastal radar coverage past 25 km' }],
+    })
+    await openEvidence('419007431')
+    expect(screen.getByRole('heading', { name: 'Data limitations' })).toBeTruthy()
+    expect(screen.getByText(/Radar gap:/)).toBeTruthy()
+    expect(screen.getByText(/No coastal radar coverage past 25 km/)).toBeTruthy()
+  })
+
+  it('shows data limitations not reported on evidence when limitations are missing (B-09)', async () => {
+    vesselsApi.get.mockResolvedValue({
+      ...seaPearlDetail,
+      limitations: undefined,
+    })
+    await openEvidence('419007431')
+    expect(screen.getByRole('heading', { name: 'Data limitations' })).toBeTruthy()
+    expect(screen.getByText('Data limitations not reported')).toBeTruthy()
+  })
+
+  it('draws evidence without crashing and says checks not reported when checks are missing (B-09)', async () => {
+    const detailWithoutChecks = { ...seaPearlDetail }
+    delete detailWithoutChecks.checks
+    vesselsApi.get.mockResolvedValue(detailWithoutChecks)
+    await openEvidence('419007431')
+    expect(screen.getByText('Checks not reported')).toBeTruthy()
+  })
+
+  it('shows checks and indicators line on report view (B-09)', async () => {
+    reportsApi.list.mockResolvedValue([sampleReport])
+    await openReports('/reports?id=1')
+    const article = document.querySelector('article')
+    expect(article).toBeTruthy()
+    expect(within(article).getByRole('heading', { name: 'Checks' })).toBeTruthy()
+    expect(within(article).getByText('AIS receiver outage:')).toBeTruthy()
+    expect(within(article).getAllByText(/9 other vessels within 50 km kept reporting/).length).toBeGreaterThanOrEqual(1)
+    expect(within(article).getByText('AIS gaps and encounters are indicators, not proof of an offence.')).toBeTruthy()
+  })
+
+  it('shows data limitations on report view when present (B-09)', async () => {
+    reportsApi.list.mockResolvedValue([
+      {
+        ...sampleReport,
+        snapshot: {
+          ...seaPearlDetail,
+          limitations: [{ key: 'ais_range', label: 'AIS range', detail: 'Shore receiver coverage drops beyond 40 km' }],
+        },
+      },
+    ])
+    await openReports('/reports?id=1')
+    const article = document.querySelector('article')
+    expect(article).toBeTruthy()
+    expect(within(article).getByRole('heading', { name: 'Data limitations' })).toBeTruthy()
+    expect(within(article).getByText('AIS range:')).toBeTruthy()
+    expect(within(article).getAllByText(/Shore receiver coverage drops beyond 40 km/).length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('draws older report snapshot with no checks and no limitations saying they are not reported (B-09)', async () => {
+    const olderSnapshot = { ...seaPearlDetail }
+    delete olderSnapshot.checks
+    delete olderSnapshot.limitations
+    reportsApi.list.mockResolvedValue([
+      {
+        ...sampleReport,
+        snapshot: olderSnapshot,
+      },
+    ])
+    await openReports('/reports?id=1')
+    expect(screen.getByText('Checks not reported')).toBeTruthy()
+    expect(screen.getByText('Data limitations not reported')).toBeTruthy()
+    expect(screen.getByText('AIS gaps and encounters are indicators, not proof of an offence.')).toBeTruthy()
   })
 })

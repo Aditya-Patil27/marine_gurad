@@ -99,13 +99,22 @@ export const CLEARS = {
 const DATA_MODES = {
   live: 'Live data',
   historical: 'Historical data',
+  replay: 'Replay data',
   cached: 'Cached data',
   synthetic: 'Synthetic data',
+  unknown: 'Source unknown',
+  mixed: 'Mixed source modes',
 }
 
-/** Never guess: a missing or unknown mode must not read as live. Only this helper reads `data_mode`, so a contract rename is one line. */
-export const sourceLabel = (record) =>
-  Object.hasOwn(DATA_MODES, record?.data_mode ?? '') ? DATA_MODES[record.data_mode] : 'Source not reported'
+/** Never guess: a missing or unknown mode must not read as live. The API stores provenance in `source_mode`; `data_mode` stays supported for older callers. */
+export const sourceLabel = (record) => {
+  const mode = record?.source_mode || record?.data_mode || ''
+  return Object.hasOwn(DATA_MODES, mode) ? DATA_MODES[mode] : 'Source not reported'
+}
+
+/** The selected historical bounds in the same IST format as observation times. */
+export const windowRangeIST = (window) =>
+  window?.start && window?.end ? `${dateTimeIST(window.start)} to ${dateTimeIST(window.end)}` : 'Window not reported'
 
 export function modeLabel(record) {
   const label = sourceLabel(record)
