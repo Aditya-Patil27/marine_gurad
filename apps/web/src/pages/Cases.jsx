@@ -474,7 +474,7 @@ export function ReportsPage() {
       if (typeof detail === 'string') {
         setError(detail)
       } else if (e.response?.status === 422 || (detail !== undefined && detail !== null)) {
-        setError('The API rejected this sign-off. Check the officer name and try again.')
+        setError('The API rejected this sign-off. Reload the report and try again.')
       } else {
         setError('Could not sign report.')
       }

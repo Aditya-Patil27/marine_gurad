@@ -155,7 +155,7 @@ describe('Cases / EvidencePage & ReportsPage', () => {
 
     expect(screen.getByRole('alert').textContent).toContain('Report #999 was not found.')
     expect(screen.queryByText(/Vessel investigation:/)).toBeNull()
-    expect(screen.queryByText('Officer name')).toBeNull()
+    expect(screen.queryByText(/Your signed-in account will be recorded/)).toBeNull()
     expect(screen.queryByRole('button', { name: 'Record sign-off' })).toBeNull()
     expect(screen.getByRole('link', { name: /#1 · Sea Pearl II/ })).toBeTruthy()
   })
@@ -167,10 +167,10 @@ describe('Cases / EvidencePage & ReportsPage', () => {
 
     expect(screen.getByText('REPORT #1 · Awaiting review')).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Vessel investigation: Sea Pearl II' })).toBeTruthy()
-    expect(screen.getByText('Officer name')).toBeTruthy()
+    expect(screen.getByText(/Your signed-in account will be recorded/)).toBeTruthy()
   })
 
-  it('keeps report on screen with readable message when sign-off rejected with non-string detail, allowing correction and signing', async () => {
+  it('keeps report on screen with readable message when sign-off rejected with non-string detail, allowing a retry', async () => {
     reportsApi.list.mockResolvedValue([sampleReport])
     const validationError = Object.assign(new Error('Unprocessable Entity'), {
       response: {
@@ -186,29 +186,26 @@ describe('Cases / EvidencePage & ReportsPage', () => {
 
     await openReports('/reports')
 
-    const officerInput = screen.getByLabelText(/Officer name/)
     const checkbox = screen.getByLabelText(/I reviewed the evidence/)
     const signBtn = screen.getByRole('button', { name: 'Record sign-off' })
 
-    fireEvent.change(officerInput, { target: { value: 'A'.repeat(121) } })
     fireEvent.click(checkbox)
 
     await act(async () => {
       fireEvent.click(signBtn)
     })
 
-    expect(screen.getByRole('alert').textContent).toContain('The API rejected this sign-off. Check the officer name and try again.')
+    expect(screen.getByRole('alert').textContent).toContain('The API rejected this sign-off. Reload the report and try again.')
     expect(screen.getByRole('heading', { name: 'Vessel investigation: Sea Pearl II' })).toBeTruthy()
 
     reportsApi.sign.mockResolvedValueOnce({ ...sampleReport, signed_at: '2026-11-03T10:00:00Z', signed_by: 'Officer Rao' })
     reportsApi.list.mockResolvedValueOnce([{ ...sampleReport, signed_at: '2026-11-03T10:00:00Z', signed_by: 'Officer Rao' }])
 
-    fireEvent.change(officerInput, { target: { value: 'Officer Rao' } })
     await act(async () => {
       fireEvent.click(signBtn)
     })
 
-    expect(reportsApi.sign).toHaveBeenCalledWith(1, 'Officer Rao', true)
+    expect(reportsApi.sign).toHaveBeenCalledWith(1, 'Authenticated reviewer', true)
     expect(screen.queryByText(/The API rejected this sign-off/)).toBeNull()
   })
 
@@ -226,11 +223,9 @@ describe('Cases / EvidencePage & ReportsPage', () => {
 
     await openReports('/reports')
 
-    const officerInput = screen.getByLabelText(/Officer name/)
     const checkbox = screen.getByLabelText(/I reviewed the evidence/)
     const signBtn = screen.getByRole('button', { name: 'Record sign-off' })
 
-    fireEvent.change(officerInput, { target: { value: 'Officer Rao' } })
     fireEvent.click(checkbox)
 
     await act(async () => {
@@ -246,11 +241,9 @@ describe('Cases / EvidencePage & ReportsPage', () => {
 
     await openReports('/reports')
 
-    const officerInput = screen.getByLabelText(/Officer name/)
     const checkbox = screen.getByLabelText(/I reviewed the evidence/)
     const signBtn = screen.getByRole('button', { name: 'Record sign-off' })
 
-    fireEvent.change(officerInput, { target: { value: 'Officer Rao' } })
     fireEvent.click(checkbox)
     expect(checkbox.checked).toBe(true)
     expect(signBtn.disabled).toBe(false)
@@ -306,18 +299,16 @@ describe('Cases / EvidencePage & ReportsPage', () => {
 
     await openReports('/reports')
 
-    const officerInput = screen.getByLabelText(/Officer name/)
     const checkbox = screen.getByLabelText(/I reviewed the evidence/)
     const signBtn = screen.getByRole('button', { name: 'Record sign-off' })
 
-    fireEvent.change(officerInput, { target: { value: 'A'.repeat(121) } })
     fireEvent.click(checkbox)
 
     await act(async () => {
       fireEvent.click(signBtn)
     })
 
-    expect(screen.getByRole('alert').textContent).toContain('The API rejected this sign-off. Check the officer name and try again.')
+    expect(screen.getByRole('alert').textContent).toContain('The API rejected this sign-off. Reload the report and try again.')
 
     const report2Link = screen.getByRole('link', { name: /#2/ })
     await act(async () => {
@@ -328,24 +319,7 @@ describe('Cases / EvidencePage & ReportsPage', () => {
     expect(screen.queryByRole('alert')).toBeNull()
   })
 
-  it('keeps the officer name when officer types on report 1 then opens report 2', async () => {
-    reportsApi.list.mockResolvedValue([sampleReport, sampleReport2])
-
-    await openReports('/reports')
-
-    const officerInput = screen.getByLabelText(/Officer name/)
-    fireEvent.change(officerInput, { target: { value: 'Officer Rao' } })
-
-    const report2Link = screen.getByRole('link', { name: /#2/ })
-    await act(async () => {
-      fireEvent.click(report2Link)
-    })
-
-    const officerInputReport2 = screen.getByLabelText(/Officer name/)
-    expect(officerInputReport2.value).toBe('Officer Rao')
-  })
-
-  it('keeps message, name and tick when sign-off is rejected and officer stays on that report', async () => {
+  it('keeps message and tick when sign-off is rejected and officer stays on that report', async () => {
     reportsApi.list.mockResolvedValue([sampleReport, sampleReport2])
     const validationError = Object.assign(new Error('Unprocessable Entity'), {
       response: {
@@ -361,19 +335,16 @@ describe('Cases / EvidencePage & ReportsPage', () => {
 
     await openReports('/reports')
 
-    const officerInput = screen.getByLabelText(/Officer name/)
     const checkbox = screen.getByLabelText(/I reviewed the evidence/)
     const signBtn = screen.getByRole('button', { name: 'Record sign-off' })
 
-    fireEvent.change(officerInput, { target: { value: 'Officer Rao' } })
     fireEvent.click(checkbox)
 
     await act(async () => {
       fireEvent.click(signBtn)
     })
 
-    expect(screen.getByRole('alert').textContent).toContain('The API rejected this sign-off. Check the officer name and try again.')
-    expect(screen.getByLabelText(/Officer name/).value).toBe('Officer Rao')
+    expect(screen.getByRole('alert').textContent).toContain('The API rejected this sign-off. Reload the report and try again.')
     expect(screen.getByLabelText(/I reviewed the evidence/).checked).toBe(true)
   })
 
@@ -385,21 +356,19 @@ describe('Cases / EvidencePage & ReportsPage', () => {
     expect(screen.getByText('REPORT #2 · Awaiting review')).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Vessel investigation: Lakshmi Matha' })).toBeTruthy()
 
-    const officerInput = screen.getByLabelText(/Officer name/)
     const checkbox = screen.getByLabelText(/I reviewed the evidence/)
     const signBtn = screen.getByRole('button', { name: 'Record sign-off' })
 
     reportsApi.sign.mockResolvedValueOnce({ ...sampleReport2, signed_at: '2026-11-03T10:00:00Z', signed_by: 'Officer Rao' })
     reportsApi.list.mockResolvedValueOnce([sampleReport, { ...sampleReport2, signed_at: '2026-11-03T10:00:00Z', signed_by: 'Officer Rao' }])
 
-    fireEvent.change(officerInput, { target: { value: 'Officer Rao' } })
     fireEvent.click(checkbox)
 
     await act(async () => {
       fireEvent.click(signBtn)
     })
 
-    expect(reportsApi.sign).toHaveBeenCalledWith(2, 'Officer Rao', true)
+    expect(reportsApi.sign).toHaveBeenCalledWith(2, 'Authenticated reviewer', true)
   })
 
   it('shows AIS data source not reported for vessel with no data_mode in evidence', async () => {
@@ -799,15 +768,13 @@ describe('Cases / EvidencePage & ReportsPage', () => {
 
     await openReports('/reports?id=1')
 
-    const officerInput = screen.getByLabelText(/Officer name/)
     const checkbox = screen.getByLabelText(/I reviewed the evidence/)
     const signBtn = screen.getByRole('button', { name: 'Record sign-off' })
 
-    fireEvent.change(officerInput, { target: { value: 'Officer Rao' } })
     fireEvent.click(checkbox)
 
     fireEvent.click(signBtn)
-    expect(reportsApi.sign).toHaveBeenCalledWith(1, 'Officer Rao', true)
+    expect(reportsApi.sign).toHaveBeenCalledWith(1, 'Authenticated reviewer', true)
 
     const report2Link = screen.getByRole('link', { name: /#2/ })
     await act(async () => {
@@ -835,7 +802,6 @@ describe('Cases / EvidencePage & ReportsPage', () => {
 
     await openReports('/reports?id=1')
 
-    fireEvent.change(screen.getByLabelText(/Officer name/), { target: { value: 'Officer Rao' } })
     fireEvent.click(screen.getByLabelText(/I reviewed the evidence/))
     fireEvent.click(screen.getByRole('button', { name: 'Record sign-off' }))
 
@@ -874,11 +840,9 @@ describe('Cases / EvidencePage & ReportsPage', () => {
 
     await openReports('/reports?id=1')
 
-    const officerInput = screen.getByLabelText(/Officer name/)
     const checkbox = screen.getByLabelText(/I reviewed the evidence/)
     const signBtn = screen.getByRole('button', { name: 'Record sign-off' })
 
-    fireEvent.change(officerInput, { target: { value: 'Officer Rao' } })
     fireEvent.click(checkbox)
 
     fireEvent.click(signBtn)

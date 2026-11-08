@@ -130,7 +130,8 @@ describe('map page', () => {
   it('opens the vessel named in the address', async () => {
     await open('/map?vessel=419007431')
 
-    expect(vesselsApi.get).toHaveBeenCalledWith(419007431)
+    // Rolling view: no historical window bounds are sent
+    expect(vesselsApi.get).toHaveBeenCalledWith(419007431, null)
     expect(screen.getByRole('heading', { name: 'Sea Pearl II' })).toBeTruthy()
   })
 

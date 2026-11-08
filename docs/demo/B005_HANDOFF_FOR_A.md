@@ -30,7 +30,7 @@ Commits: `0836e04` (B-005 replay), `2cbc337` (SST optional). No backend file was
 
 ## Known, not caused by B-005
 
-- 14 frontend tests were already failing before this work: 11 sign-off tests in `Cases.test.jsx` look for the removed "Officer name" field, plus one each in `MapPage`, `OceanMap` and `VesselPanel`. B owns these and will fix them separately.
+- 14 frontend tests that were failing before this work are fixed: they expected the removed "Officer name" field and the pre-replay call signatures. The full frontend suite now passes.
 - The compose `samudrasense_backend` mounts the main `b/sprint` checkout, which has no migration 013 and no sources code. B ran its own backend container from this worktree instead.
 
 ## Local state left behind

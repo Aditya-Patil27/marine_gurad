@@ -153,7 +153,8 @@ describe('VesselPanel', () => {
     fireEvent.click(draftBtn)
 
     expect(reportsApi.create).toHaveBeenCalledTimes(1)
-    expect(reportsApi.create).toHaveBeenCalledWith(419007431)
+    // No assessment and, in the rolling view, no window bounds
+    expect(reportsApi.create).toHaveBeenCalledWith(419007431, null, null)
     expect(draftBtn.disabled).toBe(true)
 
     await act(async () => {
