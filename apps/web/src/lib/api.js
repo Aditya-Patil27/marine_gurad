@@ -59,8 +59,11 @@ export const serverDetail = (error) => {
 
 export const reportsApi = {
   list: () => api.get('/reports/').then((r) => r.data),
-  /** `gfwEvent` is the selected page identity {gfw_event_id, gfw_start_date, gfw_end_date, gfw_offset, gfw_limit}, or null. */
-  create: (mmsi, assessment_id = null, window = null, gfwEvent = null) =>
+  /**
+   * `gfwEvent` is the selected page identity {gfw_event_id, gfw_start_date, gfw_end_date, gfw_offset, gfw_limit}, or null.
+   * `oceanContext` asks the server to add the prepared regional SST subset; the server answers 503 when that subset is missing.
+   */
+  create: (mmsi, assessment_id = null, window = null, gfwEvent = null, oceanContext = false) =>
     api
       .post('/reports/', {
         mmsi,
@@ -68,7 +71,7 @@ export const reportsApi = {
         ...windowQuery(window),
         ...(assessment_id ? { assessment_id } : {}),
         // Without a selected event no GFW field is sent, not even a default page
-        ...(gfwEvent ? { ...gfwEvent, include_gfw_ocean_context: true } : {}),
+        ...(gfwEvent ? { ...gfwEvent, include_gfw_ocean_context: oceanContext } : {}),
       })
       .then((r) => r.data),
   sign: (id, officer, reviewed) => api.post(`/reports/${id}/sign`, { officer, reviewed }).then((r) => r.data),

@@ -92,10 +92,24 @@ describe('B-005 replay journey', () => {
     const reports = calls(post, '/reports/')
     expect(reports).toHaveLength(2)
     reports.forEach(([, body]) => expect(body).toEqual({
-      mmsi: Number(MMSI), lookback_hours: 72, ...BOUNDS, assessment_id: 'asm-1', ...GFW_PAGE, include_gfw_ocean_context: true,
+      // The regional SST subset is unavailable here, so the event is attached without asking for it
+      mmsi: Number(MMSI), lookback_hours: 72, ...BOUNDS, assessment_id: 'asm-1', ...GFW_PAGE, include_gfw_ocean_context: false,
     }))
     expect(calls(post, '/cases/case-1/revisions')[0][1]).toEqual({ report_id: 7, expected_version: 0 })
     expect(screen.getByText('at ?id=case-1')).toBeTruthy()
+  })
+
+  it('asks for SST context with the event only when the regional subset loaded', async () => {
+    const base = get.getMockImplementation()
+    get.mockImplementation(async (url, config) => (url === '/environment/regional'
+      ? { data: { variable: 'Sea surface temperature', value: 29.1, unit: '°C', observed_at: '2026-10-19T00:00:00Z', attribution: 'Copernicus Marine Service' } }
+      : base(url, config)))
+    post.mockImplementation(async () => ({ data: { id: 4 } }))
+    await open(`/vessels/${MMSI}?${new URLSearchParams({ ...GFW_PAGE, gfw_offset: '20', gfw_limit: '20' })}`)
+
+    expect(screen.getByText('Regional historical SST context will be included.')).toBeTruthy()
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Create report snapshot' })) })
+    expect(calls(post, '/reports/')[0][1]).toMatchObject({ ...GFW_PAGE, include_gfw_ocean_context: true })
   })
 
   it('rolling mode omits both bounds and, without an event, every GFW field', async () => {

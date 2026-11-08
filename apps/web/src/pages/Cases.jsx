@@ -165,16 +165,19 @@ export function EvidencePage() {
     environmentApi.regional().then(setRegionalEnv).catch(() => setRegionalEnv(null))
   }, [mmsi])
 
+  // Ask for the regional SST subset only when it loaded; a missing subset makes the server refuse the whole report
+  const oceanContext = Boolean(regionalEnv)
+
   async function createReport() {
     setReportError('')
-    try { const r = await reportsApi.create(Number(mmsi), null, bounds, gfwEvent); navigate(`/reports?id=${r.id}`) }
+    try { const r = await reportsApi.create(Number(mmsi), null, bounds, gfwEvent, oceanContext); navigate(`/reports?id=${r.id}`) }
     catch (error) { setReportError(serverDetail(error) || 'Could not create an evidence snapshot. Check the API and database migration.') }
   }
 
   async function createCase() {
     setCreatingCase(true); setReportError(''); setConflict(false)
-    // A resumed case keeps the window and event it was started with
-    let step = pending ?? { caseId: null, reportId: null, window: selectedWindow, bounds, gfwEvent }
+    // A resumed case keeps the window, event and SST choice it was started with
+    let step = pending ?? { caseId: null, reportId: null, window: selectedWindow, bounds, gfwEvent, oceanContext }
     try {
       const syncResult = await assessmentsApi.sync(Number(mmsi), step.bounds)
       if (!syncResult.synced) throw new ExpectedCaseError(noObservationsMessage(step.window))
@@ -187,7 +190,7 @@ export function EvidencePage() {
         setPending(step)
       }
       if (!step.reportId) {
-        const report = await reportsApi.create(Number(mmsi), assessment.id, step.bounds, step.gfwEvent)
+        const report = await reportsApi.create(Number(mmsi), assessment.id, step.bounds, step.gfwEvent, step.oceanContext)
         step = { ...step, reportId: report.id }
         setPending(step)
       }
@@ -214,6 +217,7 @@ export function EvidencePage() {
     {gfwEvent && <div className="mb-4 border-l-2 border-line pl-3">
       <p>GFW event <span className="num">{gfwEvent.gfw_event_id}</span> will be attached to the next report (page {gfwEvent.gfw_start_date} to {gfwEvent.gfw_end_date}, offset {gfwEvent.gfw_offset}, limit {gfwEvent.gfw_limit}).</p>
       <p className="text-muted">A historical inferred event point: not a vessel track, not a live position, not proof of fishing or illegality.</p>
+      <p className="text-muted">{oceanContext ? 'Regional historical SST context will be included.' : 'Regional SST context is unavailable, so the event is attached without it.'}</p>
       <button type="button" className="mt-1 underline" disabled={Boolean(pending)} onClick={() => setParams({})}>Don't attach this event</button>
     </div>}
     {vesselError && (
