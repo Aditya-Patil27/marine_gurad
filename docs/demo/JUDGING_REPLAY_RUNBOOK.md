@@ -109,12 +109,20 @@ If one of these appears, name it and continue; do not improvise data.
 
 ## 5. Known gaps for this run
 
-- Case status UI operations, source-linked real tracks and point SAR remain
-  unimplemented or unverified; case creation is a bounded local slice.
+- Checked in a browser on 8 Nov 2026 against a throwaway database with the
+  synthetic seed: closing and reopening a case with a note and its history;
+  acknowledging, resolving and reopening a stored alert; a real 409 when the
+  alert changed first; the review queue; sign-off; and the JSON evidence
+  export. The SHA-256 recomputed outside the app from the exported snapshot
+  matched the stored hash.
+- Stored alerts are empty for replay data: `Sync stored alerts` only reads
+  positions from the last hour. Their titles say "MPA Violation Detected",
+  which is backend wording; treat them as screening records.
+- Source-linked real tracks and point SAR remain unimplemented or unverified.
 - The vessel evidence empty-state text still says "last 24 h" while the API uses
   a seven-day window; trust the actual window and the timestamps on screen.
 - Weather is Open-Meteo model context and does not alter risk scores.
-- The frontend test runner (`vitest`) was absent in the container at the last
-  check; the production build is the verified frontend check.
+- The frontend suite (`npx vitest run` in `apps/web`, 180 tests) and the
+  production build passed on 8 Nov 2026, run on the host, not in the container.
 - No screenshots or provider results are invented by this runbook. Use the
   actual screen during the recording.

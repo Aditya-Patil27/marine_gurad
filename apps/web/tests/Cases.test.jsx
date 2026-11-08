@@ -8,7 +8,7 @@ import { fleet, httpError, networkError, regionalEnvironment, seaPearlDetail } f
 vi.mock('@/lib/api', async (original) => ({
   ...(await original()),
   vesselsApi: { list: vi.fn(), get: vi.fn() },
-  reportsApi: { list: vi.fn(), create: vi.fn(), sign: vi.fn() },
+  reportsApi: { list: vi.fn(), listText: vi.fn(), create: vi.fn(), sign: vi.fn() },
   weatherApi: { vessel: vi.fn() },
   sarApi: { detections: vi.fn() },
   environmentApi: { regional: vi.fn() },
@@ -170,23 +170,38 @@ describe('Cases / EvidencePage & ReportsPage', () => {
     expect(screen.getByText(/Your signed-in account will be recorded/)).toBeTruthy()
   })
 
-  it('exports the stored report unchanged with its hash, hash method and server integrity result', async () => {
+  it('exports the report text exactly as the server sent it, so 59.0 stays 59.0 for the hash check', async () => {
     reportsApi.list.mockResolvedValue([sampleReport])
+    // Server text as Python writes it: the float 59.0 and a brace inside a string must survive
+    const serverReport = JSON.stringify({ ...sampleReport, note: 'a } b' }).replace(/}$/, ',"course":59.0}')
+    reportsApi.listText.mockResolvedValue(`[${JSON.stringify(sampleReport2)},${serverReport}]`)
     let blob
     URL.createObjectURL = vi.fn((b) => { blob = b; return 'blob:report' })
     URL.revokeObjectURL = vi.fn()
     const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function () { expect(this.download).toBe('samudrasense-report-1.json') })
     await openReports('/reports')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Export evidence record (JSON)' }))
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Export evidence record (JSON)' })) })
 
     expect(click).toHaveBeenCalledTimes(1)
-    const record = JSON.parse(await blob.text())
-    expect(record.report).toEqual(sampleReport)
+    const text = await blob.text()
+    expect(text).toContain(`"report": ${serverReport}`)
+    const record = JSON.parse(text)
+    expect(record.report.id).toBe(1)
     expect(record.integrity_verified_by_server).toBe(true)
     expect(record.hash_method).toContain('sorted keys')
     expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:report')
     click.mockRestore()
+  })
+
+  it('says the export failed when the report text cannot be loaded', async () => {
+    reportsApi.list.mockResolvedValue([sampleReport])
+    reportsApi.listText.mockRejectedValue(networkError())
+    await openReports('/reports')
+
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Export evidence record (JSON)' })) })
+
+    expect(screen.getByRole('alert').textContent).toBe('Could not export this report. Reload the page and try again.')
   })
 
   it('keeps report on screen with readable message when sign-off rejected with non-string detail, allowing a retry', async () => {

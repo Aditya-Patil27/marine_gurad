@@ -92,8 +92,20 @@ describe('stored alert lifecycle and triage', () => {
     post.mockRejectedValue(conflict('Alert changed; reload before retrying'))
     await open('/alerts')
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Acknowledge Entered Gulf of Mannar MPA (MMSI 419007431)' })) })
-    expect(screen.getByRole('status').textContent).toBe('Alert changed; reload before retrying Nothing was changed. The list was reloaded.')
+    expect(screen.getByRole('status').textContent).toBe('Alert changed; reload before retrying. Nothing was changed. The list was reloaded.')
     expect(calls(get, '/alerts/stored')).toHaveLength(2)
+  })
+
+  it('does not show old reviewers on a reopened alert, and clears the last message when the filter changes', async () => {
+    alertResponses = [[storedAlert({ acknowledged_by: 'analyst', resolved_by: 'analyst', resolution_note: 'Licensed transit' })]]
+    post.mockRejectedValue(conflict('Alert changed'))
+    await open('/alerts')
+    expect(screen.queryByText(/Acknowledged by|Resolved by|Licensed transit/)).toBeNull()
+
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Acknowledge Entered Gulf of Mannar MPA (MMSI 419007431)' })) })
+    expect(screen.getByRole('status')).toBeTruthy()
+    await act(async () => { fireEvent.change(screen.getByLabelText('Status'), { target: { value: 'resolved' } }) })
+    expect(screen.queryByRole('status')).toBeNull()
   })
 
   it('syncs stored alerts and reports the counts the server returned', async () => {
@@ -125,7 +137,7 @@ describe('case lifecycle', () => {
     post.mockRejectedValue(conflict('Case changed; reload before retrying'))
     await open('/cases?id=case-1')
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Close case' })) })
-    expect(screen.getByRole('status').textContent).toBe('Case changed; reload before retrying Nothing was changed; the case was reloaded.')
+    expect(screen.getByRole('status').textContent).toBe('Case changed; reload before retrying. Nothing was changed; the case was reloaded.')
     expect(calls(get, '/cases/case-1')).toHaveLength(2)
     expect(calls(post, '/cases/case-1/close')[0][1]).toEqual({ expected_version: 2 })
   })

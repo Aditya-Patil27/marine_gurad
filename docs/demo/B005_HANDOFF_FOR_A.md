@@ -27,6 +27,8 @@ Commits: `0836e04` (B-005 replay), `2cbc337` (SST optional). No backend file was
 3. **Credentials in `apps/api/.env.example`, lines 64–66.** This tracked file holds a JWT-shaped GFW token (issued 2026-11-04, expiry 2036-11-01; different from the one in `.env`) and Copernicus values. The repo is public. Please confirm whether these are placeholders or real; if real, rotate them and replace with empty values.
 4. **"Data mode" header label.** The shell header said "Source not reported" while the report for the same data said "Synthetic data". The header reads a separate status endpoint; please check what it should return for seeded data.
 5. **Migration 013 on B's shared database.** The `samudrasense_postgres_data` volume is at alembic 002 (678 rows dated 13 Oct). B did not migrate it. Either migrate it, or confirm that B should keep using throwaway databases.
+6. **Stored alerts and replay data.** `POST /alerts/sync` calls `check_mpa_violations()`, which only reads `vessel_tracks` from the last hour (`alert_generator.py:110`). For a replay window, sync finds 0 alerts; B got 2 only after reseeding the throwaway DB at the current time. The titles say "MPA Violation Detected". Please decide whether sync should follow the selected window, and whether "Violation" is the wording you want for a screening record.
+7. **Report hash and JSON numbers.** The hash covers Python's text, where `course` is `59.0`. Any client that parses the JSON and writes it again gets `59`, so the hash no longer matches. B's export now saves the server text unchanged (verified: hash recomputed outside the app matches). A single-report `GET /reports/{id}` would let B stop extracting the report from the list text.
 
 ## Known, not caused by B-005
 
