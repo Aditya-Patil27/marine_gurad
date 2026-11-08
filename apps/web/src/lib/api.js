@@ -59,13 +59,16 @@ export const serverDetail = (error) => {
 
 export const reportsApi = {
   list: () => api.get('/reports/').then((r) => r.data),
-  create: (mmsi, assessment_id = null, window = null) =>
+  /** `gfwEvent` is the selected page identity {gfw_event_id, gfw_start_date, gfw_end_date, gfw_offset, gfw_limit}, or null. */
+  create: (mmsi, assessment_id = null, window = null, gfwEvent = null) =>
     api
       .post('/reports/', {
         mmsi,
         lookback_hours: windowHours(window),
         ...windowQuery(window),
         ...(assessment_id ? { assessment_id } : {}),
+        // Without a selected event no GFW field is sent, not even a default page
+        ...(gfwEvent ? { ...gfwEvent, include_gfw_ocean_context: true } : {}),
       })
       .then((r) => r.data),
   sign: (id, officer, reviewed) => api.post(`/reports/${id}/sign`, { officer, reviewed }).then((r) => r.data),

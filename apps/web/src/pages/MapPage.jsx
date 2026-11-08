@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
-import { useOutletContext, useSearchParams } from 'react-router-dom'
+import { Link, useOutletContext, useSearchParams } from 'react-router-dom'
 import { CircleAlert, Search } from 'lucide-react'
 import OceanMap from '../features/map/OceanMap'
 import AttentionCard from '../features/map/AttentionCard'
@@ -127,6 +127,7 @@ export default function MapPage() {
     finally { setEventLoading(false) }
   }
 
+  const selectedEvent = events?.features.find((f) => f.properties.event_id === eventId)
   const zones = usePolling(() => mapApi.zones(), 10 * 60e3)
   const detail = usePolling(selected ? () => vesselsApi.get(selected, bounds) : null, 30e3, [selected, windowKey])
   const regionalEnv = usePolling(() => environmentApi.regional(), 10 * 60e3)
@@ -197,6 +198,11 @@ export default function MapPage() {
               {events.features.filter(f => f.properties.event_id).map(f => <option key={f.properties.event_id} value={f.properties.event_id}>{f.properties.vessel_name || f.properties.mmsi || 'Unknown vessel'} · {f.properties.start}</option>)}
             </select>
           </label>
+          {selectedEvent && (selectedEvent.properties.mmsi
+            ? <Link className="mt-1 block underline" to={`/vessels/${selectedEvent.properties.mmsi}?${new URLSearchParams({
+                gfw_event_id: eventId, gfw_start_date: events.requested_start, gfw_end_date: events.requested_end_exclusive,
+                gfw_offset: String(events.offset), gfw_limit: String(events.limit) })}`}>Open vessel evidence to attach this event</Link>
+            : <p className="mt-1 text-muted">This event has no MMSI, so it can't be attached to a vessel report.</p>)}
           {eventId && <a className="mt-1 block underline" href={`${API_URL}/api/v1/gfw/events/evidence?${new URLSearchParams({ event_id: eventId, start_date: eventStart, end_date: eventEnd, offset: String(eventOffset), limit: '50', include_regional_ocean_context: 'true' })}`} target="_blank" rel="noreferrer">Download event evidence and historical SST</a>}
         </div>}
         {eventError && <p role="alert" className="text-risk-red">{eventError}</p>}

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { assessmentsApi, casesApi, vesselsApi, reportsApi, weatherApi, sarApi, environmentApi, isNotFound, serverDetail } from '../lib/api'
+import { assessmentsApi, casesApi, vesselsApi, reportsApi, weatherApi, sarApi, environmentApi, isConflict, isNotFound, serverDetail } from '../lib/api'
 import { formatEnvironmentalReading } from '../lib/environment'
 import { dateTimeIST, hoursLabel, modeLabel, score, sourceLabel, vesselName, withDisplayNames, windowRangeIST } from '../lib/format'
 import { useReplayWindow } from '../lib/replayWindow'
@@ -46,11 +46,20 @@ function DataLimitations({ items, rule }) {
 }
 
 export function AlertsPage() {
+  const { window: selectedWindow, bounds, key: windowKey } = useReplayWindow()
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
-  useEffect(() => { vesselsApi.list(168).then(setData).catch(() => setError('Unable to load vessels.')) }, [])
+  useEffect(() => {
+    let current = true
+    setData(null); setError('')
+    vesselsApi.list(168, bounds).then((d) => current && setData(d)).catch(() => current && setError('Unable to load vessels.'))
+    return () => { current = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [windowKey])
   return <Page title="Alert triage">
-    <p className="mb-5 text-muted">Current risk signals from the last 7 days. Weather does not change these scores. Open a vessel to see its weather, and Reports to see review status.</p>
+    <p className="mb-5 text-muted">{isHistorical(selectedWindow) ? 'Risk signals in the selected historical window.' : 'Current risk signals from the last 7 days.'} Weather does not change these scores. Open a vessel to see its weather, and Reports to see review status.</p>
+    <ObservationWindowNotice window={selectedWindow} className="mb-5" />
+    {data?.vessels.length === 0 && isHistorical(selectedWindow) && <p>{`No observations in this window: ${windowRangeIST(selectedWindow)}.`}</p>}
     {error && <p role="alert">{error}</p>}
     {!data && !error && <p>Loading alerts…</p>}
     {data && <div className="grid gap-5 md:grid-cols-2">{['high', 'medium'].map(level => <section className={surface} key={level}>
@@ -94,8 +103,28 @@ export function InvestigationCasesPage() {
   </Page>
 }
 
+/** The exact GFW page identity carried from the map; null when no event was selected. */
+const gfwEventFrom = (params) => {
+  const id = params.get('gfw_event_id')
+  if (!id) return null
+  return {
+    gfw_event_id: id,
+    gfw_start_date: params.get('gfw_start_date'),
+    gfw_end_date: params.get('gfw_end_date'),
+    gfw_offset: Number(params.get('gfw_offset')),
+    gfw_limit: Number(params.get('gfw_limit')),
+  }
+}
+
 export function EvidencePage() {
   const { mmsi } = useParams()
+  const [params, setParams] = useSearchParams()
+  const gfwEvent = gfwEventFrom(params)
+  const { window: selectedWindow, bounds, key: windowKey } = useReplayWindow()
+  const vesselRequest = useRef(0)
+  // A case created before a failure; a retry resumes it instead of creating another
+  const [pending, setPending] = useState(null)
+  const [conflict, setConflict] = useState(false)
   const [detail, setDetail] = useState(null)
   const [vesselError, setVesselError] = useState(null)
   const [reportError, setReportError] = useState('')
@@ -107,9 +136,13 @@ export function EvidencePage() {
   const navigate = useNavigate()
 
   const loadVessel = () => {
+    // Only the answer to the latest vessel/window request may paint
+    const mine = ++vesselRequest.current
     setVesselError(null)
     setDetail(null)
-    vesselsApi.get(mmsi).then(setDetail).catch(setVesselError)
+    vesselsApi.get(mmsi, bounds)
+      .then((d) => mine === vesselRequest.current && setDetail(d))
+      .catch((e) => mine === vesselRequest.current && setVesselError(e))
   }
 
   const loadSar = () => {
@@ -119,38 +152,54 @@ export function EvidencePage() {
   }
 
   useEffect(() => {
+    if (mmsi) loadVessel()
+    return () => { vesselRequest.current += 1 }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mmsi, windowKey])
+
+  useEffect(() => {
     if (!mmsi) return
-    setWeather(null); setReportError('')
-    loadVessel()
+    setWeather(null); setReportError(''); setPending(null); setConflict(false)
     weatherApi.vessel(mmsi).then(setWeather).catch(() => setWeather({ status: 'unavailable', reason: 'Weather service unavailable.' }))
     loadSar()
     environmentApi.regional().then(setRegionalEnv).catch(() => setRegionalEnv(null))
   }, [mmsi])
 
   async function createReport() {
-    try { const r = await reportsApi.create(Number(mmsi)); navigate(`/reports?id=${r.id}`) }
-    catch { setReportError('Could not create an evidence snapshot. Check the API and database migration.') }
+    setReportError('')
+    try { const r = await reportsApi.create(Number(mmsi), null, bounds, gfwEvent); navigate(`/reports?id=${r.id}`) }
+    catch (error) { setReportError(serverDetail(error) || 'Could not create an evidence snapshot. Check the API and database migration.') }
   }
 
   async function createCase() {
-    setCreatingCase(true); setReportError('')
-    let caseId = null
-    let reportId = null
+    setCreatingCase(true); setReportError(''); setConflict(false)
+    // A resumed case keeps the window and event it was started with
+    let step = pending ?? { caseId: null, reportId: null, window: selectedWindow, bounds, gfwEvent }
     try {
-      const syncResult = await assessmentsApi.sync(Number(mmsi))
-      if (!syncResult.synced) throw new Error('No assessment could be generated for this vessel in the selected lookback window.')
+      const syncResult = await assessmentsApi.sync(Number(mmsi), step.bounds)
+      if (!syncResult.synced) throw new ExpectedCaseError(noObservationsMessage(step.window))
       const result = await assessmentsApi.vessel(Number(mmsi))
-      const assessment = result.assessments.find(a => a.rule_version === 'v1' && a.source_mode === 'unknown')
-      if (!assessment) throw new Error('No current assessment exists for this vessel.')
-      const created = await casesApi.create(assessment.id, `Vessel investigation: ${vesselName(detail)}`)
-      caseId = created.id
-      const report = await reportsApi.create(Number(mmsi), assessment.id)
-      reportId = report.id
-      await casesApi.addRevision(caseId, reportId, 0)
-      navigate(`/cases?id=${caseId}`)
+      const assessment = pickAssessment(result.assessments, step.window)
+      if (!assessment) throw new ExpectedCaseError('No saved assessment matches the selected window. Nothing was linked.')
+      if (!step.caseId) {
+        const created = await casesApi.create(assessment.id, `Vessel investigation: ${vesselName(detail)}`)
+        step = { ...step, caseId: created.id }
+        setPending(step)
+      }
+      if (!step.reportId) {
+        const report = await reportsApi.create(Number(mmsi), assessment.id, step.bounds, step.gfwEvent)
+        step = { ...step, reportId: report.id }
+        setPending(step)
+      }
+      await casesApi.addRevision(step.caseId, step.reportId, 0)
+      navigate(`/cases?id=${step.caseId}`)
     } catch (error) {
-      const detailMessage = error.response?.data?.detail || error.message || 'Unable to create case.'
-      setReportError(`${detailMessage}${caseId ? ` Case ${caseId} was created${reportId ? ` and report ${reportId} was saved` : ''}; do not retry without reviewing these records.` : ' Sign in as an analyst or administrator if required.'}`)
+      setConflict(isConflict(error))
+      const message = error instanceof ExpectedCaseError ? error.message : serverDetail(error) || 'Unable to create case.'
+      const kept = step.caseId
+        ? ` Case ${step.caseId} was created${step.reportId ? ` and report ${step.reportId} was saved` : ''}; retrying resumes it and does not create another case.`
+        : isConflict(error) || error instanceof ExpectedCaseError ? '' : ' Sign in as an analyst or administrator if required.'
+      setReportError(`${message}${isConflict(error) ? ' No report was created.' : ''}${kept}`)
     } finally { setCreatingCase(false) }
   }
 
@@ -160,11 +209,20 @@ export function EvidencePage() {
 
   return <Page title={detail ? vesselName(detail) : 'Vessel evidence'}>
     {reportError && <p role="alert" className="mb-4 text-risk-red">{reportError}</p>}
+    {conflict && <button type="button" className="btn mb-4" disabled={creatingCase} onClick={createCase}>Re-sync with the same window and retry</button>}
+    <ObservationWindowNotice window={selectedWindow} className="mb-4" />
+    {gfwEvent && <div className="mb-4 border-l-2 border-line pl-3">
+      <p>GFW event <span className="num">{gfwEvent.gfw_event_id}</span> will be attached to the next report (page {gfwEvent.gfw_start_date} to {gfwEvent.gfw_end_date}, offset {gfwEvent.gfw_offset}, limit {gfwEvent.gfw_limit}).</p>
+      <p className="text-muted">A historical inferred event point: not a vessel track, not a live position, not proof of fishing or illegality.</p>
+      <button type="button" className="mt-1 underline" disabled={Boolean(pending)} onClick={() => setParams({})}>Don't attach this event</button>
+    </div>}
     {vesselError && (
       <div className="mb-4">
         <p role="alert" className="text-risk-red">
           {isNotFound(vesselError)
-            ? `No positions for MMSI ${mmsi} in the last 24 h.`
+            ? isHistorical(selectedWindow)
+              ? `No observations for MMSI ${mmsi} in this window: ${windowRangeIST(selectedWindow)}.`
+              : `No positions for MMSI ${mmsi} in the last 24 h.`
             : "Can't reach the API, so this vessel's evidence didn't load."}
         </p>
         {!isNotFound(vesselError) && (
@@ -218,10 +276,37 @@ export function EvidencePage() {
             <button type="button" className="btn btn-primary mt-2" onClick={loadSar}>Try again</button>
           </div>
         ) : !detections ? <p>Loading detections…</p> : detections.filter(d => d.matched_mmsi === detail.mmsi).length ? detections.filter(d => d.matched_mmsi === detail.mmsi).map(d => <p key={d.id} className="border-t border-line py-2">{d.source} · {d.scene_id} · {Math.round(d.match_distance_m)} m from AIS · SAR data: {modeLabel(d)}. Candidate match, not confirmed identity.</p>) : <p className="text-muted">No candidate SAR detection recorded for this vessel.</p>}
-        <div className="mt-5 flex flex-wrap gap-3"><Link className="btn" to={`/map?vessel=${detail.mmsi}`}>View track on map</Link><button className="btn btn-primary" onClick={createReport}>Create report snapshot</button><button className="btn" disabled={creatingCase} onClick={createCase}>{creatingCase ? 'Creating case…' : 'Create investigation case'}</button></div>
+        <div className="mt-5 flex flex-wrap gap-3"><Link className="btn" to={`/map?vessel=${detail.mmsi}`}>View track on map</Link><button className="btn btn-primary" onClick={createReport}>Create report snapshot</button><button className="btn" disabled={creatingCase} onClick={createCase}>{creatingCase ? 'Creating case…' : pending ? `Resume case ${pending.caseId}` : 'Create investigation case'}</button></div>
       </section>
     </div>}
   </Page>
+}
+
+/** Persisted A-004E evidence; every value is the stored one, timestamps shown as stored UTC. */
+function GfwEventEvidence({ evidence }) {
+  const snap = evidence.snapshot ?? {}
+  const event = snap.event ?? {}
+  const sst = snap.regional_ocean_context
+  const observed = (sst?.values ?? []).map((v) => v.observed_at).filter(Boolean).sort()
+  const row = 'border-b border-line py-2'
+  return <section aria-label="GFW event evidence">
+    <h3 className="mb-2 mt-6 text-lg">GFW event evidence</h3>
+    <p className="text-muted">A historical inferred event point. It is not a vessel track, not a live vessel position, not proof of fishing and not proof of illegality.</p>
+    <p className={row}><b>Source:</b> {snap.source ?? 'Not reported'} · dataset {snap.dataset ?? 'not reported'}</p>
+    <p className={row}><b>Event:</b> <span className="num">{event.id ?? 'Not reported'}</span>{event.type ? ` · ${event.type}` : ''}</p>
+    <p className={row}><b>Event start/end (UTC, as stored):</b> {event.start ?? 'not reported'} to {event.end ?? 'not reported'}</p>
+    <p className={row}><b>Event position:</b> {event.position ? `${event.position.lat}, ${event.position.lon}` : 'Not reported'}</p>
+    <p className={row}><b>Requested page:</b> {snap.requested_start ?? '?'} to {snap.requested_end_exclusive ?? '?'} (end exclusive){snap.retrieved_at ? ` · retrieved ${snap.retrieved_at}` : ''}</p>
+    <p className={`${row} num break-all text-xs`}>Evidence SHA-256 {evidence.sha256 ?? 'not reported'}</p>
+    {evidence.integrity_note && <p className={`${row} text-muted`}>{evidence.integrity_note}</p>}
+    <p className={`${row} text-muted`}><b className="text-ink">Limitations: </b>{snap.limitations || 'Not reported'}</p>
+    {sst && <div className={row}>
+      <p><b>Sea surface temperature (dated independently of the event):</b> {sst.source ?? 'Source not reported'}{sst.dataset ? ` · ${sst.dataset}` : ''}{sst.mode ? ` · ${sst.mode}` : ''}</p>
+      <p className="text-muted">Observed {observed.length ? `${observed[0]} to ${observed[observed.length - 1]}` : 'dates not reported'} · {plural(sst.values?.length ?? 0, 'value', 'values')}{sst.unit ? ` in ${sst.unit}` : ''}</p>
+      {sst.association && <p className="text-muted">{sst.association}</p>}
+      {sst.limitations && <p className="text-muted">{sst.limitations}</p>}
+    </div>}
+  </section>
 }
 
 export function ReportsPage() {
@@ -274,11 +359,13 @@ export function ReportsPage() {
             <h3 className="mb-2 mt-6 text-lg">Evidence and source</h3>
             <p className="text-muted">Values below come from the preserved AIS track and risk-engine calculation in this snapshot.</p>
             <p className="text-muted">AIS data: {sourceLabel(selected.snapshot)}</p>
+            <ObservationWindowNotice className="my-2" window={selected.snapshot.window} assessmentWindow={selected.snapshot.persisted_assessment?.window} windowMatch={selected.snapshot.persisted_assessment?.window_match} />
             {selected.snapshot.factors.map(f => {
               const names = [selected.snapshot, ...(selected.snapshot.encounters ?? [])]
               return <div key={f.key} className="border-b border-line py-3"><b>{withDisplayNames(f.label, names)}</b> · {withDisplayNames(f.detail, names)} · +{score(f.points)}</div>
             })}
             {selected.snapshot.sar_candidates?.map(d => <div key={d.id} className="border-b border-line py-3"><b>SAR candidate:</b> {d.source} · scene {d.scene_id} · {dateTimeIST(d.observed_at)} · {Math.round(d.match_distance_m)} m from AIS · SAR data: {modeLabel(d)}. Identity not confirmed.</div>)}
+            {selected.snapshot.gfw_event_evidence && <GfwEventEvidence evidence={selected.snapshot.gfw_event_evidence} />}
             <h3 className="mb-2 mt-6 text-lg">Checks</h3>
             {selected.snapshot.checks && selected.snapshot.checks.length > 0 ? (
               selected.snapshot.checks.map(c => (
