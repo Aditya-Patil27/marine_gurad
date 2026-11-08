@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { assessmentsApi, casesApi, vesselsApi, reportsApi, weatherApi, sarApi, environmentApi, isConflict, isNotFound, serverDetail } from '../lib/api'
+import { alertsApi, assessmentsApi, casesApi, triageApi, vesselsApi, reportsApi, weatherApi, sarApi, environmentApi, isConflict, isNotFound, serverDetail } from '../lib/api'
 import { formatEnvironmentalReading } from '../lib/environment'
 import { dateTimeIST, hoursLabel, modeLabel, score, sourceLabel, vesselName, withDisplayNames, windowRangeIST } from '../lib/format'
 import { useReplayWindow } from '../lib/replayWindow'
@@ -69,7 +69,106 @@ export function AlertsPage() {
       </Link>)}
       {!data.vessels.some(v => v.level === level) && <p className="text-muted">No vessels in this category.</p>}
     </section>)}</div>}
+    <ReviewQueue />
+    <StoredAlerts />
   </Page>
+}
+
+const REVIEW_STATES = { under_review: 'Under review (open case)', needs_review: 'Needs review', monitor: 'Monitor' }
+
+/** Persisted review priorities over every saved assessment; read-only, no provider calls. */
+function ReviewQueue() {
+  const [data, setData] = useState(null)
+  const [error, setError] = useState('')
+  useEffect(() => {
+    let current = true
+    triageApi.queue().then((d) => current && setData(d)).catch((e) => current && setError(serverDetail(e) || 'Unable to load the review queue.'))
+    return () => { current = false }
+  }, [])
+  return <section className={`${surface} mt-5`} aria-label="Review queue">
+    <h2 className="mb-1 text-xl">Review queue</h2>
+    <p className="mb-3 text-muted">Saved assessments from every window, open cases first. {data?.limitation}</p>
+    {error && <p role="alert">{error}</p>}
+    {!data && !error && <p>Loading review queue…</p>}
+    {data?.items.length === 0 && <p className="text-muted">No saved assessments yet.</p>}
+    {data?.items.map(item => <Link className="block border-t border-line py-3 hover:text-navy" to={`/vessels/${item.mmsi}`} key={item.id}>
+      <b>{vesselName({ name: item.vessel_name, mmsi: item.mmsi })}</b> · {REVIEW_STATES[item.review_state] ?? item.review_state}<span className="num float-right">{score(item.score)}</span>
+      <p className="text-muted">Alerts: {item.alerts.open} open, {item.alerts.acknowledged} acknowledged, {item.alerts.resolved} resolved · Cases: {item.cases.open} open, {item.cases.closed} closed · Evaluated {dateTimeIST(item.evaluated_at)}</p>
+    </Link>)}
+    {data && data.total > data.items.length && <p className="mt-2 text-muted">Showing {data.items.length} of {data.total}.</p>}
+    {data?.weather?.reason && <p className="mt-2 text-muted">{data.weather.reason}</p>}
+  </section>
+}
+
+const ALERT_ACTIONS = { open: ['acknowledge', 'resolve'], acknowledged: ['resolve'], resolved: ['reopen'] }
+const ACTION_LABELS = { acknowledge: 'Acknowledge', resolve: 'Resolve', reopen: 'Reopen' }
+const ACTION_DONE = { acknowledge: 'acknowledged', resolve: 'resolved', reopen: 'reopened' }
+
+/** Stored alert records and their analyst lifecycle; every change sends the version the analyst saw. */
+function StoredAlerts() {
+  const [status, setStatus] = useState('open')
+  const [data, setData] = useState(null)
+  const [error, setError] = useState('')
+  const [message, setMessage] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [notes, setNotes] = useState({})
+  const request = useRef(0)
+
+  const load = useCallback(() => {
+    // Only the answer to the latest filter may paint
+    const mine = ++request.current
+    setError('')
+    return alertsApi.stored(status)
+      .then((d) => mine === request.current && setData(d))
+      .catch((e) => mine === request.current && setError(serverDetail(e) || 'Unable to load stored alerts.'))
+  }, [status])
+  useEffect(() => { setData(null); load() }, [load])
+
+  async function run(work, describe) {
+    setBusy(true); setMessage('')
+    try { setMessage(describe(await work())) }
+    catch (e) { setMessage(`${serverDetail(e) || 'The request failed.'}${isConflict(e) ? ' Nothing was changed.' : ''} The list was reloaded.`) }
+    finally { setBusy(false); await load() }
+  }
+  const sync = () => run(alertsApi.sync, (r) => `Synced ${plural(r.observed, 'current alert', 'current alerts')}: ${r.created} new, ${r.updated} updated, ${r.unchanged} unchanged, ${r.skipped_resolved} left resolved.`)
+  const act = (alert, action) => run(
+    () => alertsApi.transition(alert.id, action, alert.version, action === 'resolve' ? notes[alert.id]?.trim() : undefined),
+    () => `${alert.title} (MMSI ${alert.mmsi}) ${ACTION_DONE[action]}.`,
+  )
+
+  return <section className={`${surface} mt-5`} aria-label="Stored alerts">
+    <div className="mb-1 flex flex-wrap items-center gap-3">
+      <h2 className="text-xl">Stored alerts</h2>
+      <label className="ml-auto text-muted">Status{' '}
+        <select value={status} onChange={(e) => setStatus(e.target.value)}>
+          <option value="open">Open</option>
+          <option value="acknowledged">Acknowledged</option>
+          <option value="resolved">Resolved</option>
+          <option value="">All</option>
+        </select>
+      </label>
+      <button type="button" className="btn" disabled={busy} onClick={sync}>Sync stored alerts</button>
+    </div>
+    <p className="mb-3 text-muted">Protected-area alerts saved from current observations for analyst review; not limited to the selected window. {data?.limitation}</p>
+    {message && <p role="status" className="mb-3">{message}</p>}
+    {error && <p role="alert">{error}</p>}
+    {!data && !error && <p>Loading stored alerts…</p>}
+    {data?.alerts.length === 0 && <p className="text-muted">No stored alerts with this status.</p>}
+    {data?.alerts.map(a => <div className="border-t border-line py-3" key={a.id}>
+      <b>{a.title}</b> · {a.severity} · {a.status}<span className="float-right text-muted">{sourceLabel(a)}</span>
+      <p className="text-muted">
+        <Link className="underline" to={`/vessels/${a.mmsi}`}>MMSI {a.mmsi}</Link> · Last observed {dateTimeIST(a.last_observed_at)}
+        {a.acknowledged_by && ` · Acknowledged by ${a.acknowledged_by}`}{a.resolved_by && ` · Resolved by ${a.resolved_by}`}{a.resolution_note && `: ${a.resolution_note}`}
+      </p>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        {ALERT_ACTIONS[a.status]?.includes('resolve') && <input className="border border-line px-2 py-1" maxLength={500} placeholder="Resolution note (optional)"
+          aria-label={`Resolution note for ${a.title} (MMSI ${a.mmsi})`} value={notes[a.id] ?? ''} onChange={(e) => setNotes({ ...notes, [a.id]: e.target.value })} />}
+        {(ALERT_ACTIONS[a.status] ?? []).map(action => <button type="button" className="btn" key={action} disabled={busy}
+          aria-label={`${ACTION_LABELS[action]} ${a.title} (MMSI ${a.mmsi})`} onClick={() => act(a, action)}>{ACTION_LABELS[action]}</button>)}
+      </div>
+    </div>)}
+    {data && data.total > data.alerts.length && <p className="mt-2 text-muted">Showing {data.alerts.length} of {data.total}.</p>}
+  </section>
 }
 
 export function InvestigationCasesPage() {
@@ -77,12 +176,30 @@ export function InvestigationCasesPage() {
   const [cases, setCases] = useState(null)
   const [selected, setSelected] = useState(null)
   const [error, setError] = useState('')
+  const [note, setNote] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [actionMessage, setActionMessage] = useState('')
   const id = params.get('id')
-  useEffect(() => { casesApi.list().then(setCases).catch(() => setError('Unable to load cases. Sign in to view them.')) }, [])
+  const loadList = () => casesApi.list().then(setCases).catch(() => setError('Unable to load cases. Sign in to view them.'))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { loadList() }, [])
   useEffect(() => {
-    setSelected(null)
+    setSelected(null); setNote(''); setActionMessage('')
     if (id) casesApi.get(id).then(setSelected).catch(() => setError('Unable to load this case.'))
   }, [id])
+
+  async function transition(action) {
+    setBusy(true); setActionMessage('')
+    try {
+      // Sends the version on screen; a 409 means someone else changed the case first
+      setSelected(await casesApi.transition(selected.id, action, selected.version, note.trim()))
+      setNote('')
+      setActionMessage(action === 'close' ? 'Case closed.' : 'Case reopened.')
+    } catch (e) {
+      setActionMessage(`${serverDetail(e) || 'Unable to change this case.'}${isConflict(e) ? ' Nothing was changed; the case was reloaded.' : ''}`)
+      casesApi.get(selected.id).then(setSelected).catch(() => {})
+    } finally { setBusy(false); loadList() }
+  }
   return <Page title="Investigation cases">
     <p className="mb-5 text-muted">Cases link a saved screening assessment to report snapshots. Source coverage remains unknown; these are not findings of an offence.</p>
     {error && <p role="alert" className="text-risk-red">{error}</p>}
@@ -98,6 +215,22 @@ export function InvestigationCasesPage() {
           <Link className="underline" to={`/reports?id=${r.report_id}`}>Report #{r.report_id} · revision {r.version}</Link>
           <p>{r.integrity_ok ? 'Snapshot hash verified' : 'Integrity check failed'} · added by {r.created_by}</p>
         </div>)}
+        {['open', 'closed'].includes(selected.status) && <div className="mt-5 border-t border-line pt-4">
+          {selected.status === 'closed' && <p className="mb-2 text-muted">A closed case accepts no new report revisions until it is reopened.</p>}
+          <label className="block text-muted">Note (optional)
+            <textarea className="mt-1 block w-full border border-line p-2 text-ink" maxLength={500} rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
+          </label>
+          <button type="button" className="btn mt-2" disabled={busy} onClick={() => transition(selected.status === 'open' ? 'close' : 'reopen')}>
+            {selected.status === 'open' ? 'Close case' : 'Reopen case'}
+          </button>
+          {actionMessage && <p role="status" className="mt-2">{actionMessage}</p>}
+        </div>}
+        {selected.events?.length > 0 && <section aria-label="Case history" className="mt-5">
+          <h3 className="mb-1 text-lg">History</h3>
+          {selected.events.map(e => <p className="border-t border-line py-2" key={e.id}>
+            {e.event} by {e.actor} · {dateTimeIST(e.created_at)}{e.note && <span className="text-muted"> · {e.note}</span>}
+          </p>)}
+        </section>}
       </>}
     </section></div>}
   </Page>

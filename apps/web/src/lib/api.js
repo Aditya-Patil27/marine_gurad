@@ -94,6 +94,22 @@ export const casesApi = {
   get: (id) => api.get(`/cases/${id}`).then(r => r.data),
   create: (assessment_id, title) => api.post('/cases/', { assessment_id, title }).then(r => r.data),
   addRevision: (id, report_id, expected_version) => api.post(`/cases/${id}/revisions`, { report_id, expected_version }).then(r => r.data),
+  /** `action` is 'close' or 'reopen'; the server answers 409 when the case changed since `expected_version`. */
+  transition: (id, action, expected_version, note) =>
+    api.post(`/cases/${id}/${action}`, { expected_version, ...(note ? { note } : {}) }).then(r => r.data),
+}
+
+/** Stored alert records with an analyst lifecycle; not limited to the selected observation window. */
+export const alertsApi = {
+  stored: (status) => api.get('/alerts/stored', { params: { limit: 100, ...(status ? { status } : {}) } }).then(r => r.data),
+  sync: () => api.post('/alerts/sync').then(r => r.data),
+  /** `action` is 'acknowledge', 'resolve' or 'reopen'; only resolve keeps a note. */
+  transition: (id, action, expected_version, note) =>
+    api.post(`/alerts/stored/${id}/${action}`, { expected_version, ...(note ? { note } : {}) }).then(r => r.data),
+}
+
+export const triageApi = {
+  queue: () => api.get('/triage/assessments', { params: { limit: 50 } }).then(r => r.data),
 }
 
 export const weatherApi = {
