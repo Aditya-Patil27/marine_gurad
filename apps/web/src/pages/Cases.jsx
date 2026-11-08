@@ -446,6 +446,21 @@ function GfwEventEvidence({ evidence }) {
   </section>
 }
 
+/** Saves the stored report as JSON, unchanged, so the SHA-256 can be checked against the snapshot outside the app. */
+function exportReport(report) {
+  const record = {
+    exported_at: new Date().toISOString(),
+    hash_method: 'SHA-256 of the snapshot as UTF-8 JSON with sorted keys and no whitespace (Python json.dumps sort_keys=True, separators=(",", ":"), ensure_ascii=False)',
+    integrity_verified_by_server: report.integrity_ok,
+    notice: 'AIS gaps and encounters are indicators, not proof of an offence. Sign-off records a review; this file was not sent anywhere.',
+    report,
+  }
+  const url = URL.createObjectURL(new Blob([JSON.stringify(record, null, 2)], { type: 'application/json' }))
+  const link = Object.assign(document.createElement('a'), { href: url, download: `samudrasense-report-${report.id}.json` })
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
 export function ReportsPage() {
   const [params] = useSearchParams()
   const [reports, setReports] = useState(null)
@@ -519,6 +534,8 @@ export function ReportsPage() {
             <details className="mt-4"><summary>View source snapshot ({plural(selected.snapshot.track.length, 'AIS position', 'AIS positions')})</summary><pre className="mt-2 max-h-64 overflow-auto text-xs">{JSON.stringify(selected.snapshot, null, 2)}</pre></details>
           </article>
           <aside className={surface}><h2 className="text-xl">Evidence integrity</h2><p className="mt-2">{selected.integrity_ok ? 'Snapshot hash verified' : 'Hash mismatch — sign-off blocked'}</p><p className="mt-2 text-xs text-muted">The hash detects accidental changes; it is stored alongside the evidence and is not a digital signature.</p><p className="num mt-2 break-all text-xs text-muted">SHA-256 {selected.sha256}</p>
+            <button className="btn mt-4 w-full" onClick={() => exportReport(selected)}>Export evidence record (JSON)</button>
+            <p className="mt-2 text-xs text-muted">Downloads the stored snapshot, its hash and the review state{selected.integrity_ok ? '' : ', including the failed integrity check'}.</p>
             {selected.signed_at ? <p className="mt-5">Signed by {selected.signed_by} at {dateTimeIST(selected.signed_at)}</p> : <div className="mt-5"><p className="text-muted">Your signed-in account will be recorded as reviewer.</p><label className="my-4 flex gap-2"><input type="checkbox" checked={reviewed} onChange={e => setReviewed(e.target.checked)} />I reviewed the evidence and source snapshot.</label><button className="btn btn-primary w-full" disabled={!selected.integrity_ok || !reviewed} onClick={sign}>Record sign-off</button></div>}
           </aside>
         </>
