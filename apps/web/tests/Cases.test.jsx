@@ -462,6 +462,64 @@ describe('Cases / EvidencePage & ReportsPage', () => {
     expect(screen.queryByText(/Weather data:/)).toBeNull()
   })
 
+  // Payloads below copy apps/api/app/api/weather.py field for field, so they break if the frontend drifts from the backend
+  const OPEN_METEO = { source: 'Open-Meteo forecast/model data', kind: 'modelled_weather', model_or_observation: 'model_forecast', retrieved_at: '2026-11-08T06:00:00+00:00' }
+
+  it('labels the backend weather as a model forecast, not as an unreported mode', async () => {
+    vesselsApi.get.mockResolvedValue(seaPearlDetail)
+    weatherApi.vessel.mockResolvedValue({
+      ...OPEN_METEO, status: 'available', time_utc: '2026-10-13T06:00Z', event_time_utc: '2026-10-13T06:12:00+00:00', wave_time_utc: '2026-10-13T06:00Z',
+      wind_kn: 9.4, wave_m: 0.6, latitude: 9.1, longitude: 79.2,
+      note: 'Context only; conditions are model estimates and do not prove why AIS stopped.', limitations: [],
+    })
+
+    await openEvidence('419007431')
+
+    expect(screen.getByText(/Source: Open-Meteo forecast\/model data · Weather data: Model forecast, not a measurement · Context only/)).toBeTruthy()
+    expect(screen.queryByText(/Mode not reported/)).toBeNull()
+  })
+
+  it('shows the backend reason, and no values, when it reports weather unavailable', async () => {
+    vesselsApi.get.mockResolvedValue(seaPearlDetail)
+    weatherApi.vessel.mockResolvedValue({
+      ...OPEN_METEO, status: 'unavailable', reason: 'Weather data could not be retrieved for this gap; no alert was downgraded.',
+      limitations: [], note: 'No weather values were substituted and the risk score and evidence states are unchanged.',
+    })
+
+    await openEvidence('419007431')
+
+    expect(screen.getByText('Weather data could not be retrieved for this gap; no alert was downgraded.')).toBeTruthy()
+    expect(screen.queryByText(/ kn wind/)).toBeNull()
+  })
+
+  it('shows the backend reason when weather was not checked because there is no qualifying gap', async () => {
+    vesselsApi.get.mockResolvedValue(seaPearlDetail)
+    weatherApi.vessel.mockResolvedValue({ status: 'not_checked', reason: 'No qualifying AIS gap', retrieved_at: '2026-11-08T06:00:00+00:00', limitations: [] })
+
+    await openEvidence('419007431')
+
+    expect(screen.getByText('No qualifying AIS gap')).toBeTruthy()
+  })
+
+  it('says weather was not checked, not that the service is down, when the API has no recent positions (every replay vessel)', async () => {
+    vesselsApi.get.mockResolvedValue(seaPearlDetail)
+    weatherApi.vessel.mockRejectedValue(Object.assign(httpError(404), { response: { status: 404, data: { detail: 'No recent vessel positions' } } }))
+
+    await openEvidence('419007431')
+
+    expect(screen.getByText('Weather not checked: No recent vessel positions.')).toBeTruthy()
+    expect(screen.queryByText(/Weather service unavailable/)).toBeNull()
+  })
+
+  it('says the weather service is unavailable only when nothing answered', async () => {
+    vesselsApi.get.mockResolvedValue(seaPearlDetail)
+    weatherApi.vessel.mockRejectedValue(networkError())
+
+    await openEvidence('419007431')
+
+    expect(screen.getByText('Weather service unavailable.')).toBeTruthy()
+  })
+
   it('shows synthetic SAR data label and candidate match text on evidence page', async () => {
     vesselsApi.get.mockResolvedValue(seaPearlDetail)
     sarApi.detections.mockResolvedValue([

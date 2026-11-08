@@ -35,7 +35,7 @@ Status: `queued`, `in round N`, `done (SHA)`, `blocked`, `you` (a person has to 
 | ID | Feature | Outcome | Depends on | Status |
 |---|---|---|---|---|
 | B-11 | F09 | The report view links each fact to its source and exports sourced JSON | B-10, A's export | blocked: needs A's 6 Nov delivery |
-| B-12 | F13 | Tests cover missing sources, real-data replay, and weather that the backend itself reports as `unavailable` | B-10 | blocked: needs A's 6 Nov delivery |
+| B-12 | F13 | Tests cover missing sources, real-data replay, and weather that the backend itself reports as `unavailable` | B-10 | done 8 Nov: weather `available`/`unavailable`/`not_checked` and the 404 for no recent positions use payloads copied from `weather.py`; GFW 503 reasons from `gfw.py`; replay checked in the browser (runbook section 5) |
 | B-13 | F14 | Record review time and evidence completeness, with sample size and limits | B-10 | blocked: needs A's 6 Nov delivery |
 | H-02 | Sprint | Record the climate-centred walkthrough as a draft video on actual screens | B-11 | you |
 

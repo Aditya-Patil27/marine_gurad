@@ -96,6 +96,9 @@ export const CLEARS = {
   fishing_in_park: 'it leaves the park',
 }
 
+/** Server details may lack a full stop; add one before the UI appends its own sentence. */
+export const sentence = (text) => (/[.!?]$/.test(text) ? text : `${text}.`)
+
 const DATA_MODES = {
   live: 'Live data',
   historical: 'Historical data',

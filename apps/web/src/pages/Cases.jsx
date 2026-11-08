@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { alertsApi, assessmentsApi, casesApi, triageApi, vesselsApi, reportsApi, weatherApi, sarApi, environmentApi, isConflict, isNotFound, serverDetail } from '../lib/api'
 import { formatEnvironmentalReading } from '../lib/environment'
-import { dateTimeIST, hoursLabel, modeLabel, score, sourceLabel, vesselName, withDisplayNames, windowRangeIST } from '../lib/format'
+import { dateTimeIST, hoursLabel, modeLabel, score, sentence, sourceLabel, vesselName, withDisplayNames, windowRangeIST } from '../lib/format'
 import { useReplayWindow } from '../lib/replayWindow'
 import ObservationWindowNotice from '../components/ObservationWindowNotice'
 
@@ -100,8 +100,8 @@ function ReviewQueue() {
   </section>
 }
 
-// Server details may lack a full stop; the UI appends its own sentence after them
-const sentence = (text) => (/[.!?]$/.test(text) ? text : `${text}.`)
+// The weather API reports `model_or_observation`, not `data_mode`
+const weatherMode = (weather) => (!weather.data_mode && weather.model_or_observation === 'model_forecast' ? 'Model forecast, not a measurement' : modeLabel(weather))
 
 const ALERT_ACTIONS = { open: ['acknowledge', 'resolve'], acknowledged: ['resolve'], resolved: ['reopen'] }
 const ACTION_LABELS = { acknowledge: 'Acknowledge', resolve: 'Resolve', reopen: 'Reopen' }
@@ -298,7 +298,9 @@ export function EvidencePage() {
   useEffect(() => {
     if (!mmsi) return
     setWeather(null); setReportError(''); setPending(null); setConflict(false)
-    weatherApi.vessel(mmsi).then(setWeather).catch(() => setWeather({ status: 'unavailable', reason: 'Weather service unavailable.' }))
+    // A server answer such as 404 "No recent vessel positions" (the weather route looks back 24 h, so every replay vessel) means
+    // the weather service was never asked; only a failure with no answer may be called unavailable
+    weatherApi.vessel(mmsi).then(setWeather).catch((e) => setWeather({ status: 'unavailable', reason: e?.response && serverDetail(e) ? `Weather not checked: ${sentence(serverDetail(e))}` : 'Weather service unavailable.' }))
     loadSar()
     environmentApi.regional().then(setRegionalEnv).catch(() => setRegionalEnv(null))
   }, [mmsi])
@@ -404,7 +406,7 @@ export function EvidencePage() {
         ) : (
           <p className="border-t border-line py-2 text-muted">Checks not reported</p>
         )}
-        <div className="mt-3 border-t border-line pt-3"><b>Weather at AIS gap:</b> {!weather ? 'Checking…' : weather.status === 'available' ? `${weather.wind_kn} kn wind, ${weather.wave_m} m waves at ${dateTimeIST(weather.time_utc)}. ${weather.source ? `Source: ${weather.source}` : 'Source not reported'} · Weather data: ${modeLabel(weather)}${weather.note ? ` · ${weather.note}` : ''}` : weather.reason}</div>
+        <div className="mt-3 border-t border-line pt-3"><b>Weather at AIS gap:</b> {!weather ? 'Checking…' : weather.status === 'available' ? `${weather.wind_kn} kn wind, ${weather.wave_m} m waves at ${dateTimeIST(weather.time_utc)}. ${weather.source ? `Source: ${weather.source}` : 'Source not reported'} · Weather data: ${weatherMode(weather)}${weather.note ? ` · ${weather.note}` : ''}` : weather.reason}</div>
         <p className="mt-4 text-muted">AIS gaps and encounters are indicators, not proof of an offence.</p>
       </section>
       <section className={surface}>

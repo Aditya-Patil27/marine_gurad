@@ -101,7 +101,9 @@ If one of these appears, name it and continue; do not improvise data.
 |---|---|---|
 | Top strip **Can't reach the API · … Showing the last data received, not live.** | Backend unavailable; the UI keeps the last response visible. | Run the pre-flight checker; restore the backend. Do not call the screen live. |
 | **Environmental data not available** (bottom-left map card) | The prepared Copernicus JSON subset is missing or unreadable. | `verify_judging_replay.py` reports `FAIL` for historical SST; restore the local artifact, do not substitute a value. |
-| **Historical events unavailable. Check the dates and provider access.** | GFW refused or could not answer (token, quota, network). | The checker reports the HTTP status. Say the external source is unavailable; the rest of the console still works. |
+| **Historical events unavailable.** followed by the API's reason (rate limit, authentication or dataset access, data unavailable) | GFW refused the request; the API passes on which failure it was. | Read the reason aloud. Say the external source is unavailable; the rest of the console still works. |
+| **Historical events unavailable. Check the dates and provider access.** | Nothing answered: the API or the network is down. | The checker reports the HTTP status. |
+| **Weather not checked: No recent vessel positions.** | The weather route only looks at the last 24 hours, so every replay vessel gets this. | Expected on replay. It is not a weather outage and nothing was downgraded. |
 | Alerts/evidence empty or no assessment exists | Replay positions are outside the 168 h look-back or the seed was never loaded. | The checker reports replay freshness/vessels `FAIL`; state that the replay is stale; do not reseed the shared database. A-005B will add fixed historical selection. |
 | **Sign-in failed. Check your account and password.** | Wrong credentials or throttled login. | Stop creating reports; do not claim authenticated approval. |
 | **No candidate SAR detection recorded for this vessel.** | No permitted point SAR evidence is integrated. | Say point SAR remains unavailable; do not infer a detection from an aggregate layer. |
@@ -122,7 +124,7 @@ If one of these appears, name it and continue; do not improvise data.
 - The vessel evidence empty-state text still says "last 24 h" while the API uses
   a seven-day window; trust the actual window and the timestamps on screen.
 - Weather is Open-Meteo model context and does not alter risk scores.
-- The frontend suite (`npx vitest run` in `apps/web`, 180 tests) and the
+- The frontend suite (`npx vitest run` in `apps/web`, 189 tests) and the
   production build passed on 8 Nov 2026, run on the host, not in the container.
 - No screenshots or provider results are invented by this runbook. Use the
   actual screen during the recording.

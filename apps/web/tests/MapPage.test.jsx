@@ -3,7 +3,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '@/App'
-import { environmentApi, mapApi, reportsApi, sarApi, vesselsApi, weatherApi } from '@/lib/api'
+import { environmentApi, gfwApi, mapApi, reportsApi, sarApi, vesselsApi, weatherApi } from '@/lib/api'
 import { fleet, httpError, networkError, regionalEnvironment, seaPearlDetail } from './fixtures'
 
 // MapLibre needs WebGL, which jsdom doesn't have; the map itself is checked in a browser
@@ -15,6 +15,7 @@ vi.mock('@/lib/api', async (original) => ({
   weatherApi: { vessel: vi.fn() },
   sarApi: { detections: vi.fn() },
   environmentApi: { regional: vi.fn() },
+  gfwApi: { events: vi.fn() },
 }))
 
 const ZONES = { type: 'FeatureCollection', features: [] }
@@ -59,6 +60,32 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers())
 
 describe('map page', () => {
+  // Details copy apps/api/app/api/gfw.py, which answers 503 for each provider failure
+  it.each([
+    'Global Fishing Watch rate limit reached; check source status and retry after reset',
+    'Global Fishing Watch authentication or dataset access failed',
+    'Global Fishing Watch data is unavailable',
+  ])('shows the reason the API gave when GFW events fail: %s', async (detail) => {
+    gfwApi.events.mockReset().mockRejectedValue(Object.assign(httpError(503), { response: { status: 503, data: { detail } } }))
+    await open('/map')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Load historical events' }))
+    await settle()
+
+    expect(screen.getByRole('alert').textContent).toBe(`Historical events unavailable. ${detail}.`)
+    expect(screen.queryByText(/source: Global Fishing Watch/)).toBeNull()
+  })
+
+  it('points at dates and provider access when nothing answered the GFW request', async () => {
+    gfwApi.events.mockReset().mockRejectedValue(networkError())
+    await open('/map')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Load historical events' }))
+    await settle()
+
+    expect(screen.getByRole('alert').textContent).toBe('Historical events unavailable. Check the dates and provider access.')
+  })
+
   it('keeps the vessel open when its panel links to the regional value', async () => {
     environmentApi.regional.mockResolvedValue(regionalEnvironment)
     await open('/map?vessel=419007431')

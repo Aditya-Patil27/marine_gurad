@@ -6,11 +6,11 @@ import AttentionCard from '../features/map/AttentionCard'
 import VesselPanel from '../features/map/VesselPanel'
 import TrackTimeline from '../features/map/TrackTimeline'
 import StateGlyph, { STATE_STYLE } from '../components/StateGlyph'
-import { API_URL, environmentApi, gfwApi, mapApi, vesselsApi } from '../lib/api'
+import { API_URL, environmentApi, gfwApi, mapApi, serverDetail, vesselsApi } from '../lib/api'
 import usePolling from '../lib/usePolling'
 import useOnline from '../lib/useOnline'
 import { formatEnvironmentalReading } from '../lib/environment'
-import { sourceLabel, timeIST, vesselName, windowRangeIST } from '../lib/format'
+import { sentence, sourceLabel, timeIST, vesselName, windowRangeIST } from '../lib/format'
 import { useReplayWindow } from '../lib/replayWindow'
 
 /** The address bar is typed by people: only a whole number of up to nine digits is an MMSI. */
@@ -123,7 +123,8 @@ export default function MapPage() {
   async function loadEvents(offset = 0) {
     setEventLoading(true); setEventError('')
     try { setEvents(await gfwApi.events(eventStart, eventEnd, offset)); setEventOffset(offset); setEventId('') }
-    catch { setEvents(null); setEventError('Historical events unavailable. Check the dates and provider access.') }
+    // The server names the cause (rate limit, access refused, provider down); without an answer, point at the likely ones
+    catch (e) { setEvents(null); setEventError(`Historical events unavailable. ${e?.response && serverDetail(e) ? sentence(serverDetail(e)) : 'Check the dates and provider access.'}`) }
     finally { setEventLoading(false) }
   }
 
