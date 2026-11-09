@@ -2,12 +2,13 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import Shell from '@/components/Shell'
-import { vesselsApi } from '@/lib/api'
+import { operationsApi, vesselsApi } from '@/lib/api'
 import { fleet } from './fixtures'
 
 vi.mock('@/lib/api', async (original) => ({
   ...(await original()),
   vesselsApi: { list: vi.fn(), get: vi.fn() },
+  operationsApi: { status: vi.fn() },
 }))
 
 let healthy = false
@@ -36,6 +37,7 @@ const expected = (event) => event.preventDefault()
 beforeEach(() => {
   healthy = false
   vesselsApi.list.mockReset().mockResolvedValue(fleet)
+  operationsApi.status.mockReset().mockResolvedValue({ remote_fetch_paused: false, cache: {} })
   vi.spyOn(console, 'error').mockImplementation(() => {})
   window.addEventListener('error', expected)
 })

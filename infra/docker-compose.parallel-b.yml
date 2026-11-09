@@ -1,0 +1,59 @@
+# Isolated B browser-check stack for the parallel run (backend 8002).
+# Stable snapshot image: no source mount, so A edits cannot change B's runtime mid-test.
+# Separate project, network, volume and database from the shared `samudrasense` stack.
+name: samudrasense_parallel_b
+
+services:
+  postgres:
+    image: postgis/postgis:15-3.3
+    container_name: samudrasense_postgres_b
+    environment:
+      POSTGRES_USER: samudra
+      # Disposable local-only password for this isolated stack; not a provider credential.
+      POSTGRES_PASSWORD: samudra_parallel_local
+      POSTGRES_DB: samudrasense_b
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_b_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U samudra -d samudrasense_b"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: samudrasense_redis_b
+    ports:
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    # Stable A1 snapshot: A-004F/migration 014 plus replay-aware stored alerts.
+    image: samudrasense-api:014-a1
+    container_name: samudrasense_backend_b
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    ports:
+      - "8002:8000"
+    env_file:
+      - path: ../apps/api/.env
+        required: false
+    environment:
+      DATABASE_URL: postgresql://samudra:samudra_parallel_local@postgres:5432/samudrasense_b
+      REDIS_URL: redis://redis:6379/0
+      PYTHONUNBUFFERED: "1"
+      SEED_DEMO_IF_EMPTY: "false"
+      CORS_ORIGINS: '["http://localhost:5173","http://localhost:5174"]'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  postgres_b_data:

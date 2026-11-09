@@ -1,0 +1,30 @@
+{
+  "schema_version": "1.0",
+  "dataset": {
+    "name": "synthetic-effort-baseline-fixture-v1",
+    "source": "SamudraSense test fixture",
+    "mode": "synthetic",
+    "permissions": "Team-created fixture; redistribution permitted",
+    "grid_resolution_degrees": 0.1,
+    "limitations": "Invented values for deterministic software checks only; not evaluation evidence."
+  },
+  "cells": [
+    {"cell_id": "c1", "latitude": 8.05, "longitude": 78.05},
+    {"cell_id": "c2", "latitude": 8.05, "longitude": 78.15},
+    {"cell_id": "c3", "latitude": 8.15, "longitude": 78.05},
+    {"cell_id": "c4", "latitude": 8.15, "longitude": 78.15},
+    {"cell_id": "c5", "latitude": 8.25, "longitude": 78.05},
+    {"cell_id": "c6", "latitude": 8.25, "longitude": 78.15}
+  ],
+  "records": [
+    {"cell_id": "c1", "observed_at": "2026-01-01T00:00:00Z", "available_at": "2026-01-01T06:00:00Z", "effort_hours": 5.0, "quality": "valid"},
+    {"cell_id": "c2", "observed_at": "2026-01-01T00:00:00Z", "available_at": "2026-01-01T06:00:00Z", "effort_hours": 1.0, "quality": "valid"},
+    {"cell_id": "c1", "observed_at": "2026-01-02T00:00:00Z", "available_at": "2026-01-02T06:00:00Z", "effort_hours": 4.0, "quality": "valid"},
+    {"cell_id": "c3", "observed_at": "2026-01-02T00:00:00Z", "available_at": "2026-01-02T06:00:00Z", "effort_hours": 3.0, "quality": "valid"},
+    {"cell_id": "c2", "observed_at": "2026-01-03T00:00:00Z", "available_at": "2026-01-03T06:00:00Z", "effort_hours": 6.0, "quality": "valid"},
+    {"cell_id": "c4", "observed_at": "2026-01-03T00:00:00Z", "available_at": "2026-01-03T06:00:00Z", "effort_hours": 2.0, "quality": "valid"},
+    {"cell_id": "c6", "observed_at": "2026-01-03T00:00:00Z", "available_at": "2026-01-03T06:00:00Z", "effort_hours": null, "quality": "cloud"},
+    {"cell_id": "c3", "observed_at": "2026-01-04T00:00:00Z", "available_at": "2026-01-04T06:00:00Z", "effort_hours": 7.0, "quality": "valid"},
+    {"cell_id": "c5", "observed_at": "2026-01-04T00:00:00Z", "available_at": "2026-01-04T06:00:00Z", "effort_hours": 1.0, "quality": "valid"}
+  ]
+}

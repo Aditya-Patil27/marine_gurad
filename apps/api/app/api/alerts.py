@@ -54,11 +54,11 @@ def alert_location(alert: dict) -> dict:
 def alert_title(alert: dict) -> str:
     mpa = alert.get("mpa_name", "Unknown MPA")
     if alert["type"] == "MPA_VIOLATION":
-        return f"MPA Violation Detected - {mpa}"
+        return f"Protected-area incursion screening - {mpa}"
     if alert["type"] == "MPA_APPROACH_PREDICTED":
-        return f"Predicted MPA Violation - {mpa}"
+        return f"Predicted protected-area approach - {mpa}"
     if alert["type"] == "MPA_APPROACH":
-        return f"Vessel Near MPA - {mpa}"
+        return f"Vessel near protected area - {mpa}"
     return ""
 
 
@@ -66,19 +66,22 @@ def alert_description(alert: dict) -> str:
     mpa = alert.get("mpa_name", "protected area")
     if alert["type"] == "MPA_VIOLATION":
         return (
-            f"Vessel {alert['mmsi']} is currently inside {mpa}. "
-            f"Risk score: {alert['risk_score']:.2f}"
+            f"Vessel {alert['mmsi']} was recorded inside {mpa} at the selected "
+            f"observation. Risk score: {alert['risk_score']:.2f}. Screening "
+            "indicator for human review, not proof of illegal activity."
         )
     if alert["type"] == "MPA_APPROACH_PREDICTED":
         return (
-            f"Vessel {alert['mmsi']} is predicted to enter {mpa} in "
-            f"{alert.get('estimated_time', 'unknown time')}. "
-            f"Distance: {alert.get('distance_km', 0):.2f}km"
+            f"Trajectory screening suggests vessel {alert['mmsi']} may approach "
+            f"{mpa} in {alert.get('estimated_time', 'an unknown time')}. "
+            f"Distance: {alert.get('distance_km', 0):.2f}km. This is not a "
+            "confirmed course or proof of illegal activity."
         )
     if alert["type"] == "MPA_APPROACH":
         return (
-            f"Vessel {alert['mmsi']} is within {alert.get('distance_km', 0):.2f}km "
-            f"of {mpa}"
+            f"Vessel {alert['mmsi']} was recorded within "
+            f"{alert.get('distance_km', 0):.2f}km of {mpa}. Screening indicator "
+            "for human review, not proof of illegal activity."
         )
     return ""
 

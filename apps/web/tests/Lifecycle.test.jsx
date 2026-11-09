@@ -88,6 +88,20 @@ describe('stored alert lifecycle and triage', () => {
     expect(calls(post, '/alerts/stored/al-1/resolve')[0][1]).toEqual({ expected_version: 4, note: 'Licensed transit' })
   })
 
+  it('saves reviewer state, assignee and an append-only analyst note with the displayed version', async () => {
+    post.mockResolvedValue({ data: {} })
+    await open('/alerts')
+    fireEvent.change(screen.getByLabelText('Review state'), { target: { value: 'in_review' } })
+    fireEvent.change(screen.getByLabelText('Assignee'), { target: { value: 'analyst.rao' } })
+    fireEvent.change(screen.getByLabelText('Reason'), { target: { value: 'Corroboration pending' } })
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Save review' })) })
+    expect(calls(post, '/alerts/stored/al-1/review')[0][1]).toEqual({ expected_version: 3, state: 'in_review', assigned_to: 'analyst.rao', reason: 'Corroboration pending' })
+
+    fireEvent.change(screen.getByLabelText('Analyst note for Entered Gulf of Mannar MPA'), { target: { value: 'Awaiting scene metadata' } })
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Add note' })) })
+    expect(calls(post, '/alerts/stored/al-1/notes')[0][1]).toEqual({ expected_version: 3, note: 'Awaiting scene metadata' })
+  })
+
   it('shows the server 409 detail, says nothing changed and reloads the list', async () => {
     post.mockRejectedValue(conflict('Alert changed; reload before retrying'))
     await open('/alerts')
@@ -108,12 +122,80 @@ describe('stored alert lifecycle and triage', () => {
     expect(screen.queryByRole('status')).toBeNull()
   })
 
-  it('syncs stored alerts and reports the counts the server returned', async () => {
-    post.mockResolvedValue({ data: { observed: 3, created: 1, updated: 1, unchanged: 0, skipped_resolved: 1 } })
+  it('syncs the rolling selection and labels the stored list as global', async () => {
+    post.mockResolvedValue({ data: {
+      observed: 3, created: 1, updated: 1, unchanged: 0, skipped_resolved: 1,
+      source_mode: 'synthetic', stored_scope: 'global',
+      window: { mode: 'rolling', start: '2026-10-26T00:00:00Z', end: '2026-11-02T00:00:00Z', hours: 168 },
+    } })
     await open('/alerts')
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Sync stored alerts' })) })
-    expect(calls(post, '/alerts/sync')).toHaveLength(1)
-    expect(screen.getByRole('status').textContent).toBe('Synced 3 current alerts: 1 new, 1 updated, 0 unchanged, 1 left resolved.')
+    expect(calls(post, '/alerts/sync')[0][1]).toEqual({ lookback_hours: 168 })
+    expect(screen.getByRole('status').textContent).toBe('Synced 3 screening alerts for the rolling 168-hour window 26 Oct 2026, 05:30 IST to 2 Nov 2026, 05:30 IST: 1 new, 1 updated, 0 unchanged, 1 left resolved. Source: Synthetic data. Stored history remains global.')
+    expect(screen.getByRole('region', { name: 'Stored alerts' }).textContent).toContain('global stored history, not a list filtered to the selected window')
+  })
+
+  it('sends the exact replay anchors and shows the server-resolved window and empty result', async () => {
+    sessionStorage.setItem('samudrasense.observation-window', 'historical')
+    post.mockResolvedValue({ data: {
+      observed: 0, created: 0, updated: 0, unchanged: 0, skipped_resolved: 0,
+      source_mode: 'unknown', stored_scope: 'global',
+      window: { mode: 'historical', start: '2026-10-30T00:00:00Z', end: '2026-11-02T00:00:00Z', hours: 72 },
+    } })
+    await open('/alerts')
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Sync stored alerts' })) })
+    expect(calls(post, '/alerts/sync')[0][1]).toEqual({
+      lookback_hours: 72,
+      window_start: '2026-10-30T00:00:00Z',
+      window_end: '2026-11-02T00:00:00Z',
+    })
+    expect(screen.getByRole('status').textContent).toContain('Synced 0 screening alerts for the historical window 30 Oct 2026, 05:30 IST to 2 Nov 2026, 05:30 IST')
+    expect(screen.getByRole('status').textContent).toContain('Source unknown. Stored history remains global.')
+  })
+
+  it('reloads rather than merging repeated and late sync results, and leaves resolved rows resolved', async () => {
+    const late = storedAlert({ status: 'resolved', version: 4, last_observed_at: '2026-10-30T06:00:00Z', resolved_by: 'analyst' })
+    alertResponses = [[storedAlert()], [late], [late]]
+    post.mockResolvedValue({ data: {
+      observed: 1, created: 0, updated: 0, unchanged: 0, skipped_resolved: 1,
+      source_mode: 'historical', stored_scope: 'global',
+      window: { mode: 'rolling', start: '2026-10-26T00:00:00Z', end: '2026-11-02T00:00:00Z', hours: 168 },
+    } })
+    await open('/alerts')
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Sync stored alerts' })) })
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Sync stored alerts' })) })
+    expect(calls(post, '/alerts/sync')).toHaveLength(2)
+    expect(screen.getAllByText(/Entered Gulf of Mannar MPA/)).toHaveLength(1)
+    expect(screen.getByRole('region', { name: 'Stored alerts' }).textContent).toContain('resolved')
+    expect(screen.getByRole('status').textContent).toContain('0 new, 0 updated, 0 unchanged, 1 left resolved')
+  })
+
+  it('keeps write and filter controls disabled until the sync reload finishes', async () => {
+    let finishReload
+    post.mockResolvedValue({ data: {
+      observed: 0, created: 0, updated: 0, unchanged: 0, skipped_resolved: 0,
+      source_mode: 'unknown', stored_scope: 'global',
+      window: { mode: 'rolling', start: '2026-10-26T00:00:00Z', end: '2026-11-02T00:00:00Z', hours: 168 },
+    } })
+    await open('/alerts')
+    get.mockImplementationOnce(() => new Promise((resolve) => { finishReload = resolve }))
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Sync stored alerts' })) })
+    expect(screen.getByRole('button', { name: 'Sync stored alerts' }).disabled).toBe(true)
+    expect(screen.getByLabelText('Status').disabled).toBe(true)
+    await act(async () => { finishReload({ data: { alerts: [], total: 0 } }) })
+    expect(screen.getByRole('button', { name: 'Sync stored alerts' }).disabled).toBe(false)
+    expect(screen.getByLabelText('Status').disabled).toBe(false)
+    expect(screen.queryByText(/Entered Gulf of Mannar MPA/)).toBeNull()
+  })
+
+  it('reloads global history after a sync conflict', async () => {
+    alertResponses = [[storedAlert()], []]
+    post.mockRejectedValue(conflict('Alert changed; reload before retrying'))
+    await open('/alerts')
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Sync stored alerts' })) })
+    expect(screen.getByRole('status').textContent).toContain('Nothing was changed. The list was reloaded.')
+    expect(calls(get, '/alerts/stored')).toHaveLength(2)
+    expect(screen.queryByText(/Entered Gulf of Mannar MPA/)).toBeNull()
   })
 })
 

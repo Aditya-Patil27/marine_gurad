@@ -6,6 +6,7 @@ import json
 
 import httpx
 from fastapi import APIRouter, HTTPException, Query
+from app.config import settings
 
 router = APIRouter()
 URL = "https://marine-api.open-meteo.com/v1/marine"
@@ -41,6 +42,8 @@ async def sea_surface_temperature(
     cached = _cache.get(key)
     if cached and monotonic() - cached[0] < CACHE_SECONDS:
         return {**cached[1], "delivery": "cached"}
+    if settings.OFFLINE_MODE:
+        raise HTTPException(status_code=503, detail="Offline mode is enabled and no valid cached marine value exists")
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.get(URL, params={

@@ -154,6 +154,7 @@ export default function MapPage() {
 
   return (
     <div className="absolute inset-0 overflow-hidden">
+      <h1 className="sr-only">Vessel map</h1>
       <OceanMap vessels={vessels} zones={zones.data} detail={current} showZones={showZones} showAll={showAll} onSelect={select} openedOn={openedOn} historicalEvents={events} />
 
       {/* One layer above the cards: the search results open over the attention list, not behind it */}

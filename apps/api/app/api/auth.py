@@ -171,6 +171,7 @@ def logout(
     request: Request,
     response: Response,
     db: Session = Depends(get_db),
+    _user: UserResponse = Depends(get_current_user),
     _csrf: None = Depends(csrf_protect),
 ) -> LogoutResponse:
     token = request.cookies.get(SESSION_COOKIE)

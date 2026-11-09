@@ -190,6 +190,7 @@ def create_user(
     email: Optional[str] = None,
     full_name: Optional[str] = None,
     role: UserRole = UserRole.VIEWER,
+    assigned_by: Optional[uuid.UUID] = None,
 ) -> User:
     normalized = normalize_username(username)
     if get_user_by_username(db, normalized):
@@ -209,7 +210,7 @@ def create_user(
     db.add(user)
     db.commit()
     db.refresh(user)
-    _assign_role(db, user.id, role)
+    _assign_role(db, user.id, role, assigned_by=assigned_by)
     return user
 
 

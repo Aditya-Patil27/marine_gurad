@@ -1,11 +1,12 @@
 # Auth API contract (A-001, report and mutation protection in A-002A/B)
 
-Implemented 4 November 2026. Prefix `/api/v1`. This is an **offline local**
-session/role foundation, not a public-facing security claim. Only the `/auth`
-session routes, the report routes in `## Report protection (A-002A)` and the
-ingest/SAR/chat mutation routes in `## Mutation protection (A-002B)` use
-authentication; every other legacy route remains **unauthenticated** (see the
-list at the end).
+Implemented through A2 on 8 November 2026. Prefix `/api/v1`. This is an
+**offline local** session/role foundation, not an Internet-facing security
+certification. Root, `/health`, OpenAPI documentation and `POST /auth/login`
+are the explicit public exceptions. Every other mounted application route
+requires a valid local session; read routes require Viewer or a role that
+implies Viewer. Existing mutation-specific Analyst/Approver/Administrator and
+CSRF requirements remain stricter.
 
 ## Session transport
 
@@ -207,14 +208,36 @@ this is a forward contract rather than a broken existing call.
   is missing/wrong; show the required roles from this table rather than retrying.
 - Login `429` includes `Retry-After` seconds.
 
-## Still unauthenticated after A-002B
+## A2 mounted-route and administration contract
 
-`/map`, `/analytics`, `/alerts`, `/vessels`, `/weather`, `/ocean`, `/aisstream`,
-`/gfw` remain unauthenticated. On the touched routers, reads remain public:
-`GET /sar/detections` and `GET /chat/health`. Report routes are protected as
-described above and the five mutation routes are protected by A-002B. The API
-must not be described as secured or exposed publicly before the remaining
-A-002 route slices are applied and tested.
+All mounted data reads under `/api/v1` now require Viewer access, including
+map, analytics, alerts, vessels, weather, ocean, AISStream, GFW, environment,
+triage, source health, SAR detections and chat health. Analyst, Approver and
+Administrator imply Viewer. Anonymous calls return 401 before database,
+provider, model or job work. Existing unsafe routes retain their narrower role
+and `X-CSRF-Token` checks. Logout now resolves identity before CSRF, so an
+anonymous logout is 401 while a signed-in request with missing/mismatched CSRF
+is 403.
+
+The first administrator is still created locally with
+`python scripts/create_local_admin.py`; the password is prompted with hidden
+input, no default credential exists, and the script refuses to overwrite a
+user. Once signed in, Administrator-only routes are:
+
+| Route | Purpose | CSRF |
+|---|---|---|
+| `GET /admin/users` | List local users and assigned roles | n/a |
+| `POST /admin/users` | Create a local user with one or more explicit roles | required |
+| `PATCH /admin/users/{id}/active` | Disable/enable an account; disabling revokes sessions | required |
+| `GET /admin/settings` | Read the single-organisation deployment settings | n/a |
+| `PUT /admin/settings` | Replace the validated deployment settings atomically | required |
+
+An administrator cannot disable their own active session. Settings contain
+organisation, named AOI and WGS84 bounding box, IANA display timezone, alert
+threshold, report recipients and retention days. Source state remains at
+`GET /sources/health` and is linked by the settings response. API keys,
+passwords, connection strings and other secret configuration are never fields
+in these responses. Migration `015` creates the singleton settings row.
 
 ## Limits
 

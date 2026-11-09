@@ -4,10 +4,11 @@ from shapely.geometry import Point, shape, mapping
 from shapely import wkb
 from shapely.ops import transform
 from typing import List, Dict, Tuple, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import json
 
 from app.services.route_predictor import RoutePredictor
+from app.services.fleet import FleetWindow
 
 class AlertGenerator:
     """Service for generating predictive alerts using LSTM route prediction"""
@@ -17,20 +18,45 @@ class AlertGenerator:
         self.route_predictor = RoutePredictor()
         self._vessel_location_cache: Dict[int, Tuple[float, float]] = {}
     
-    def _get_vessel_history(self, mmsi: int, hours: int = 2) -> List[Tuple[float, float]]:
-        """Retrieve recent position history for a vessel"""
-        query = text("""
-            SELECT
-                ST_X(location::geometry) as lon,
-                ST_Y(location::geometry) as lat
-            FROM vessel_tracks
-            WHERE mmsi = :mmsi
-            AND timestamp > NOW() - INTERVAL '1 hour' * :hours
-            ORDER BY timestamp ASC
-            LIMIT 20
-        """)
+    def _get_vessel_history(
+        self, mmsi: int, hours: int = 2, window: Optional[FleetWindow] = None
+    ) -> List[Tuple[float, float]]:
+        """Retrieve recent position history for a vessel.
 
-        result = self.db.execute(query, {"mmsi": mmsi, "hours": hours})
+        With an explicit window, history is bounded to that same UTC span so a
+        replay never mixes later observations into the prediction.
+        """
+        if window is not None:
+            query = text("""
+                SELECT
+                    ST_X(location::geometry) as lon,
+                    ST_Y(location::geometry) as lat
+                FROM vessel_tracks
+                WHERE mmsi = :mmsi
+                AND timestamp > :since
+                AND timestamp <= :until
+                ORDER BY timestamp ASC
+                LIMIT 20
+            """)
+            params = {
+                "mmsi": mmsi,
+                "since": window.start.replace(tzinfo=timezone.utc),
+                "until": window.end.replace(tzinfo=timezone.utc),
+            }
+        else:
+            query = text("""
+                SELECT
+                    ST_X(location::geometry) as lon,
+                    ST_Y(location::geometry) as lat
+                FROM vessel_tracks
+                WHERE mmsi = :mmsi
+                AND timestamp > NOW() - INTERVAL '1 hour' * :hours
+                ORDER BY timestamp ASC
+                LIMIT 20
+            """)
+            params = {"mmsi": mmsi, "hours": hours}
+
+        result = self.db.execute(query, params)
         return [(row.lon, row.lat) for row in result]
     
     def get_vessel_locations_batch(self, mmsi_list: List[int]) -> Dict[int, Tuple[float, float]]:
@@ -76,17 +102,29 @@ class AlertGenerator:
         else:
             return f"{hours / 24:.1f} days"
     
-    def check_mpa_violations(self) -> List[Dict]:
+    def check_mpa_violations(self, window: Optional[FleetWindow] = None) -> List[Dict]:
         """
         Check for vessels predicted to enter MPAs using LSTM trajectory prediction.
         Returns alerts with vessel coordinates included via SQL JOIN to solve N+1 problem.
+
+        ``window`` selects an explicit bounded UTC span over stored observations;
+        without it the existing rolling last-hour behavior is unchanged.
         """
         
         alerts = []
         
         # Query vessels near MPAs with their recent positions and coordinates
         # Using SQL JOIN to include vessel location directly, avoiding N+1 queries
-        query = text("""
+        window_filter = "timestamp > :since AND timestamp <= :until" if window else "timestamp > NOW() - INTERVAL '1 hour'"
+        params = (
+            {
+                "since": window.start.replace(tzinfo=timezone.utc),
+                "until": window.end.replace(tzinfo=timezone.utc),
+            }
+            if window
+            else {}
+        )
+        query = text(f"""
             SELECT 
                 v.mmsi,
                 v.vessel_type,
@@ -107,7 +145,7 @@ class AlertGenerator:
                 SELECT DISTINCT ON (mmsi) mmsi, vessel_type, risk_score, speed, location,
                     timestamp, source, source_mode
                 FROM vessel_tracks
-                WHERE timestamp > NOW() - INTERVAL '1 hour'
+                WHERE {window_filter}
                 ORDER BY mmsi, timestamp DESC
             ) v
             CROSS JOIN LATERAL (
@@ -120,11 +158,11 @@ class AlertGenerator:
             WHERE v.risk_score > 0.3
         """)
         
-        result = self.db.execute(query)
+        result = self.db.execute(query, params)
         
         for row in result:
             # Get vessel position history for prediction
-            positions = self._get_vessel_history(row.mmsi)
+            positions = self._get_vessel_history(row.mmsi, window=window)
             
             # Predictor falls back to linear extrapolation for short histories
             if not positions:

@@ -2,16 +2,18 @@ import { act, cleanup, fireEvent, render, screen, within } from '@testing-librar
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AlertsPage, EvidencePage, ReportsPage } from '@/pages/Cases'
-import { environmentApi, reportsApi, sarApi, vesselsApi, weatherApi } from '@/lib/api'
+import { encountersApi, environmentApi, reportsApi, sarApi, triageApi, vesselsApi, weatherApi } from '@/lib/api'
 import { fleet, httpError, networkError, regionalEnvironment, seaPearlDetail } from './fixtures'
 
 vi.mock('@/lib/api', async (original) => ({
   ...(await original()),
   vesselsApi: { list: vi.fn(), get: vi.fn() },
-  reportsApi: { list: vi.fn(), listText: vi.fn(), create: vi.fn(), sign: vi.fn() },
+  reportsApi: { list: vi.fn(), listText: vi.fn(), create: vi.fn(), sign: vi.fn(), deliveries: vi.fn() },
   weatherApi: { vessel: vi.fn() },
   sarApi: { detections: vi.fn() },
   environmentApi: { regional: vi.fn() },
+  encountersApi: { graph: vi.fn() },
+  triageApi: { queue: vi.fn(), evidence: vi.fn() },
 }))
 
 const sampleReport = {
@@ -72,6 +74,10 @@ beforeEach(() => {
   weatherApi.vessel.mockResolvedValue({ status: 'unavailable', reason: 'Weather service unavailable.' })
   sarApi.detections.mockResolvedValue([])
   environmentApi.regional.mockResolvedValue(regionalEnvironment)
+  encountersApi.graph.mockResolvedValue({ root_mmsi: 419007431, nodes: [], edges: [], limitations: [] })
+  triageApi.evidence.mockResolvedValue({ weather: { status: 'unknown' }, coverage: { status: 'unknown' }, limitations: [] })
+  triageApi.queue.mockResolvedValue({ items: [], total: 0 })
+  reportsApi.deliveries.mockResolvedValue({ items: [] })
 })
 
 describe('Cases / EvidencePage & ReportsPage', () => {

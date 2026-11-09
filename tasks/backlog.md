@@ -1,6 +1,6 @@
 # Ordered task queue
 
-Reconciled 7 November 2026. PENDING means not yet assigned; unsatisfied predecessors are named. Only `current.md` contains an executable brief. Expand each future item using the template before assigning; preserve original phase deadlines in PLAN.md.
+Reconciled 8 November 2026. The user's authorized multi-phase run is defined by `current.md` and `PARALLEL_EXECUTION.md`, with separate A/B prompts/status files. Older PENDING rows mean not implemented; listed phases may be executed only when their dependency gates pass. Each session expands its next phase into a bounded owner-only brief before editing. Preserve original phase deadlines in PLAN.md.
 
 | ID / plan mapping | Owner / status | Dependencies | Bounded result |
 |---|---|---|---|
@@ -18,7 +18,8 @@ Reconciled 7 November 2026. PENDING means not yet assigned; unsatisfied predeces
 | A-004B / P2-A2 | A / COMPLETED (report slice) | A-004A | Optional assessment UUID copies versioned assessment into the hashed report; validates vessel identity. Eight focused report checks passed; case/revision integration followed in A-004C |
 | A-004C / P2-A2 | A / COMPLETED | A-004A/B | Assessment-linked replay cases and report revisions with authenticated identity, integrity checks and expected-version conflicts; real-provider source linkage remains pending. |
 | A-004D / P2-A2 | A / COMPLETED | A-004C; Alembic 011 | Atomic case opening event, protected close/reopen transitions, ordered audit history and expected-version conflicts. |
-| A-004E / P2-A2, F09 | A / COMPLETED | A-004C; existing bounded GFW event export | Re-fetches one selected historical event from its exact bounded page and binds canonical evidence, optional independently dated SST and integrity metadata into the authenticated hashed report/case path. B caller and real browser journey remain. |
+| A-004E / P2-A2, F09 | A / COMPLETED | A-004C; existing bounded GFW event export | Re-fetches one selected historical event from its exact bounded page and binds canonical evidence, optional independently dated SST and integrity metadata into the authenticated hashed report/case path. Real reviewed journey awaits B-005F. |
+| A-004F / P2-A2, F09 | A / COMPLETED | A-004E; completed B-005 handoff | Explicit verified GFW-event-only report and atomic case/revision path without AIS/assessment synthesis; migration 014 and disposable evidence. Record: completed/A-004F.md |
 | A-005B / P2 reliability | A / COMPLETED | Existing replay | Historical window selection/scoring complete; association correction delivered in A-005B-R1. Browser integration is B-005. |
 | A-005B-R1 / P2, F02/F09/F14 | A / COMPLETED | A-005B | Migration 013 and historical report window checks; supplied focused and disposable-DB evidence. Record: completed/A-005B-R1.md |
 | A-005 / P2-A3–A4 | A / COMPLETED | Source rights; A-003/A-004 for full flow | Read-only replay pre-flight, judging runbook and focused checks; 11 live checks passed, sign-in skipped non-interactively. Never invents GFW tracks |
@@ -29,7 +30,8 @@ Reconciled 7 November 2026. PENDING means not yet assigned; unsatisfied predeces
 | A-008A / P3-A3 | A / COMPLETED | Persisted assessments, alerts and cases | Viewer-protected read-only triage queue with deterministic review states and explicit no-weather-downgrade behavior; 3 focused tests passed |
 | A-H04 / B H-04, P2-A2/P3-A3 | A / COMPLETED; B UI pending | Existing evidence/report contracts and event-time weather | Contradictory generic check corrected; opt-in report snapshot preserves fresh available/unavailable/not-checked weather with provenance and separate gap/model times. 18 focused checks passed, 1 DB test skipped; B must display the snapshot and opt in |
 | B-001 / accelerated P2-B1–B3 | B / IN PROGRESS | Existing USER_A_DATA_API now; A-001–A-004 contracts as delivered | B's labels, mode banner, dates, failures and map/sign-off fixes landed via `9220682`. Historical event/ocean/export and local login are present in the checkout; stored lifecycle and full browser verification remain pending. Separate B worktree, not delegated in A checkout |
-| B-005 / P2 browser replay | B / PAUSED (partial accidental run) | A-005B-R1 complete | One preset through map/list/detail, assessment and case/report, visible dates and 409 recovery. Brief: B-005.md |
+| B-005 / P2 browser replay | B / COMPLETED (bounded) | A-005B-R1 complete | Synthetic replay browser journey, GFW caller, lifecycle screens, exports and full frontend suite recorded on `origin/b/judging-slice`; event-only follow-up is B-005F. Brief: B-005.md |
+| B-005F / P2 event-only caller | B / PENDING | A-004F; B-005; branch integration | Selected GFW event with missing AIS → explicit event-only report → atomic case revision 1 → stored evidence/export and actual browser journey. Brief: B-005F.md |
 | B-002 / P2-B4 | B / PENDING | Integrated demo and actual evidence | Video + judging script/evidence; real/historical/synthetic labels and measured limits |
 | A-006 / P3-A1,A5 | A / IN PROGRESS (A-006A/B/C/D complete) | A-003/A-005; provider rights | A-006A reports local source configuration/freshness without provider calls; A-006B persists bounded run checkpoints and exposes last run; A-006C shares GFW pacing through Redis with a local fallback. Incremental jobs and real AIS sample validation remain |
 | A-007 / P3-A2 | A / PENDING; data criterion BLOCKED | Permitted point SAR with acquisition time; A-003 | Point import, candidate/ambiguous/unmatched states and association evaluation; no invented grid-to-point evidence |
@@ -52,4 +54,4 @@ Current state: A-004C is **COMPLETED** as a bounded local case/revision slice; A
 
 Harness work H-001 is recorded in [H-001.md](H-001.md): documentation/skill discovery implemented, final model response blocked by provider 503. The old provider-health probe is historical and is not a prerequisite for the current DeepSeek implementation workflow. Existing feature work is evidence in the audit and User A log, not retrospectively invented completed task IDs.
 
-Next: B-005 connects the historical browser journey, then real-source evidence/export linkage and lifecycle/triage screens. Backend window work is complete; preserve original full-product scope in PLAN.md.
+Next: B-005F connects the completed A-004F contract for the real historical GFW journey. Backend window/event-only work and bounded B-005 replay/lifecycle UI are complete; preserve original full-product scope in PLAN.md.

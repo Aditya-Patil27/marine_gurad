@@ -1,6 +1,17 @@
 # User A data endpoints for User B
 
-Updated 7 November 2026. Prefix: `/api/v1`. These are local prototype endpoints. The report routes and the ingest/SAR/chat mutation routes require an authenticated cookie session and CSRF as described below; the other routes here remain unauthenticated reads. Error responses use `detail` and appropriate HTTP status; show errors and empty data explicitly.
+Updated 8 November 2026. Prefix: `/api/v1`. These are local prototype endpoints. Root, `/health`, API documentation and `POST /auth/login` are the explicit public exceptions; every other mounted application route requires a cookie session. Reads require Viewer or a role that implies it. Unsafe routes retain their documented Analyst, Approver or Administrator role and matching CSRF cookie/header. Error responses use `detail` and appropriate HTTP status; show errors and empty data explicitly.
+
+## A2 access and deployment administration
+
+Administrator-only `/admin/users` list/create and `/admin/users/{id}/active`
+account management are available after the hidden-password first-run CLI
+bootstrap. Administrator-only `/admin/settings` GET/PUT stores the
+single-organisation name, WGS84 AOI bounding box, IANA display timezone,
+alert threshold, report recipients and retention period. The response links
+`/sources/health`; it never includes API keys, passwords or connection strings.
+See `AUTH_API.md` for the exact route/role matrix and CSRF behavior. This local
+authorization boundary is not a claim of public-Internet hardening.
 
 Additive historical selection (A-005B): vessel list/detail, assessment sync and report creation accept an optional explicit bounded UTC window (`window_start`/`window_end`). See [the exact contract](HISTORICAL_WINDOW_API.md) for validation, the shared `window` response object and the B caller brief. Omitting both fields keeps the existing rolling behavior. Persisted assessments store their actual window anchors, and a historical report with a mismatched or legacy assessment is rejected with 409 before insertion.
 
@@ -76,7 +87,9 @@ Persistent alert status, acknowledgement/resolution and cross-read deduplication
 
 ## Persistent alert lifecycle (A-003G)
 
-`POST /alerts/sync` requires an Analyst or Administrator session and matching CSRF cookie/header. It runs the existing generator once, deduplicates rows by the same stable identity as `GET /alerts/` and upserts `alert_records`. The response reports `observed`, `created`, `updated`, `unchanged`, `skipped_resolved`, aggregate `source_mode` and UTC `synced_at`. A new condition becomes `open`; a re-observed `open`/`acknowledged` record refreshes its facts without losing status; a `resolved` record is never silently reopened and is counted as skipped. Repeated timestamps never move `last_observed_at` backwards.
+`POST /alerts/sync` requires an Analyst or Administrator session and matching CSRF cookie/header. With no body it preserves the legacy rolling last-hour scan. Optional JSON `lookback_hours` (1–168) selects a rolling window; paired UTC `window_start`/`window_end` select the same bounded historical window used by fleet and assessment replay routes. Partial, naive, future, reversed or over-168-hour bounds return 422 before generator or database work. It runs the existing generator once, deduplicates rows by the same stable identity as `GET /alerts/` and upserts `alert_records`. The response reports `observed`, `created`, `updated`, `unchanged`, `skipped_resolved`, aggregate `source_mode`, UTC `synced_at`, the resolved `window`, and `stored_scope: "global"`. The window controls which observations this run reads; it does not turn the stored lifecycle list into a window-filtered history.
+
+A new condition becomes `open`; a re-observed `open`/`acknowledged` record refreshes its facts without losing status. Later observations advance `last_observed_at`; late observations can extend `first_observed_at` backwards and append an observation event without duplicating the record. A resolved record is never silently reopened and is counted as skipped. Source mode comes from the selected stored observation (`unknown` when absent), never from provider configuration. Titles and descriptions use protected-area screening language and explicitly avoid treating location, approach or prediction as proof of illegal activity.
 
 `GET /alerts/stored?limit=50&offset=0&status=open&severity=HIGH&mmsi=419007431` requires a Viewer or higher session; `limit` is 1–100, `offset` is nonnegative and all filters are optional. It returns `alerts`, `total`, `offset`, `limit` and `limitation`, ordered by `last_observed_at` descending. `GET /alerts/stored/{id}` returns one record plus its append-only `events` history.
 
@@ -101,6 +114,65 @@ It also accepts optional `window_start`/`window_end` with the same validation as
 `POST /reports/` optionally accepts `gfw_event_id`, `gfw_start_date`, `gfw_end_date`, `gfw_offset` (default 0), `gfw_limit` (default 20) and `include_gfw_ocean_context` (default false). The server re-fetches the same bounded regional page at report creation, so the event must still be present on that page. `gfw_event_id` requires both dates; dates without an event ID return 422. A missing event returns 404, a provider/quota failure returns 503, and an event whose `vessel.ssvid` does not match the report `mmsi` returns 409. All of these fail before any report row is inserted.
 
 On success, `snapshot.gfw_event_evidence` stores the canonical export (`snapshot`, its `sha256`, `integrity_note`) plus an association note, so the report digest covers it. The evidence preserves the provider event ID, original event start/end and position, requested date window, dataset/source metadata and limitations. Optional `regional_ocean_context` keeps the prepared Copernicus observation dates and states it may not be concurrent with the event. The event is a historical inferred point, not a vessel track, live position or proof of illegality. Because the evidence is inside the hashed snapshot, the existing case revision integrity check binds it; no schema migration is needed.
+
+### Event-only GFW report and case (A-004F)
+
+`POST /reports/` also accepts `event_only: true` (default `false`). It is an
+explicit basis, not a fallback: the request must carry `gfw_event_id`,
+`gfw_start_date`, `gfw_end_date` and the `gfw_offset`/`gfw_limit` of the page
+that contains the event. `event_only` cannot be combined with `assessment_id`,
+`window_start`/`window_end` or `include_weather_context`; those combinations
+return 422 before any provider call, and a missing event ID returns 422. The
+route never calls the vessel lookup or treats a missing AIS observation as a
+reason to guess.
+
+The server re-fetches the bounded regional page and verifies the event and its
+`vessel.ssvid` against `mmsi` before inserting: a missing event is 404, a
+mismatched MMSI is 409, and a provider/quota failure is 503. On success the
+hashed snapshot contains `evidence_basis: "gfw_event_only"`,
+`ais_evidence.status: "unavailable"`, `assessment.status: "unavailable"`, the
+canonical `gfw_event_evidence` (`snapshot`, `sha256`, `integrity_note`) and
+explicit limitations. No vessel details, risk score or `persisted_assessment`
+are copied or synthesized. `include_gfw_ocean_context` (and
+`include_regional_ocean_context`) remain optional; any ocean context is
+independently dated and not concurrent with the event position.
+
+`POST /cases/` now accepts exactly one basis: the existing `assessment_id`, or
+`report_id` for an event-only report. Supplying neither or both returns 422.
+For `report_id` the server verifies report integrity, that the snapshot is
+event-only, that the embedded canonical GFW evidence hash still matches and
+that the event MMSI equals the report MMSI; otherwise it returns 409 (404 for
+an unknown report) and creates no case. Success inserts the case with
+`assessment_id: null`, an `opened` event and revision 1 in one short
+transaction; the returned case has `version: 1`. Later revisions on such a case
+must be event-only reports with the same verified evidence, while
+assessment-backed cases keep the existing assessment-ID check. Migration `014`
+makes `investigation_cases.assessment_id` nullable and preserves the foreign
+key and all existing rows.
+
+Concrete sequence for the B caller:
+
+```http
+POST /reports/
+{"mmsi": 419007431, "event_only": true, "gfw_event_id": "<event id>",
+ "gfw_start_date": "2024-01-01", "gfw_end_date": "2024-02-01",
+ "gfw_offset": 0, "gfw_limit": 20}
+```
+
+Returns 201 with the report `id`, `sha256`, `integrity_ok` and the snapshot
+above. Then:
+
+```http
+POST /cases/
+{"report_id": <report id>, "title": "GFW event review"}
+```
+
+Returns 201 with the case `id`, `mmsi`, `assessment_id: null`, `status: "open"`
+and `version: 1`. `GET /cases/{id}` returns the revision with matching
+`report_sha256`/`integrity_ok` and the `opened` event. This enables a
+source-bound historical event review; it is not real AIS tracking, a vessel
+track, proof of fishing or proof of illegality. Missing AIS remains a coverage
+gap, not evidence about the vessel.
 
 Set `include_weather_context: true` to capture fresh weather for the latest qualifying AIS gap into `snapshot.weather_context` before hashing. The result is modelled context, not a direct observation or a risk adjustment. `event_time_utc` is the gap start; `time_utc` and `wave_time_utc` are the selected wind and wave model times, which can differ from the gap time. `retrieved_at`, source, location and limitations accompany available results. If the provider is unavailable, the snapshot records `unavailable` with the known gap time/location; if no gap qualifies it records `not_checked`. No weather values are invented. This is fetched when the report is created and may differ from weather displayed earlier. The flag defaults to false.
 
@@ -163,4 +235,4 @@ or active HIGH alert, otherwise `monitor`. Response weather is always
 `not_checked`; this endpoint never calls a provider and cannot lower risk based
 on unavailable weather. Triage is a reviewer aid, not proof of illegal activity.
 
-`POST /cases/` accepts `assessment_id` (UUID) and `title` and requires Analyst plus CSRF; the session supplies `created_by`. Case creation atomically appends an `opened` event. `GET /cases/` and `GET /cases/{id}` require Viewer. `POST /cases/{id}/revisions` requires Analyst plus CSRF and body `{ "report_id": 1, "expected_version": 0 }`. `POST /cases/{id}/close` and `/reopen` require Analyst plus CSRF and body `{ "expected_version": 0, "note": "optional" }`; they lock the case, reject stale versions or invalid transitions with 409, increment `version`, and derive the event actor from the session. Case detail returns revisions and an ordered `events` array. Cases and links are persisted by migration 008; status events by additive migration 012; report snapshots remain in `incident_reports`. A hash stored alongside its snapshot is not a digital signature.
+`POST /cases/` accepts exactly one basis: `assessment_id` (UUID), or `report_id` (initial event-only GFW report, see A-004F above), plus `title`, and requires Analyst plus CSRF; the session supplies `created_by`. Neither or both bases return 422. Assessment-backed creation atomically appends an `opened` event; event-only creation also records revision 1 in the same transaction. `GET /cases/` and `GET /cases/{id}` require Viewer. `POST /cases/{id}/revisions` requires Analyst plus CSRF and body `{ "report_id": 1, "expected_version": 0 }`. `POST /cases/{id}/close` and `/reopen` require Analyst plus CSRF and body `{ "expected_version": 0, "note": "optional" }`; they lock the case, reject stale versions or invalid transitions with 409, increment `version`, and derive the event actor from the session. Case detail returns revisions and an ordered `events` array. Cases and links are persisted by migration 008; status events by additive migration 012; report snapshots remain in `incident_reports`. A hash stored alongside its snapshot is not a digital signature.

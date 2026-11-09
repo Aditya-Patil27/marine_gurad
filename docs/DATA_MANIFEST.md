@@ -2,6 +2,26 @@
 
 Updated 6 November 2026. Record credentials only in local environment files, never in this document.
 
+## V1 operational integration update — 9 November 2026
+
+Migration 017 and its additive API contracts are implemented but not yet
+executed against the shared database. They label existing protected-area rows
+as local synthetic/unversioned/unverified fixtures unless an administrator
+loads real publisher, version, citation, permitted-use and rule metadata. They
+also preserve imported AIS source record IDs, ingestion times and quality flags;
+invalid records go to a bounded quarantine and replays deduplicate by
+`(source, source_record_id)`. No new external dataset was downloaded.
+
+The SAR import now accepts discrete, permitted point observations only and
+stores all bounded AIS candidates. No point-level SAR provider sample, crop or
+licence reference has been obtained by this work, so the real SAR gate remains
+blocked. The prepared Copernicus SST subset supports a descriptive anomaly and
+scan-budget plan only; fishing-effort evaluation, chlorophyll and currents are
+still absent. PyGNOME and valid wind/current forcing remain absent, so the spill
+API advertises `unavailable` and runs no substitute model. Report delivery is a
+local persistent file sink restricted to the reserved `.test` domain; it does
+not contact a public email provider.
+
 This is the shared harness's canonical dataset register (the role proposed for `DATASETS.md`). Do not maintain a duplicate root register. Provider detail below retains earlier access checks; the expanded acquisition table distinguishes actual local files from candidates. Account owner for configured providers: User A; credential validity is evidenced only by the dated checks, not inferred from a variable being present.
 
 Audit correction: **14.08 KB below is the provider estimate** recorded during acquisition. The actual local NetCDF is **36,234 bytes** and prepared JSON **3,994 bytes**, inspected 4 November. The scripted size/overwrite guards have focused tests; the full fetch script has not been rerun from a clean setup. Earlier manual download plus preparation succeeded. Do not claim a clean-checkout acquisition test has passed.

@@ -79,8 +79,8 @@ describe('B-005 replay journey', () => {
     expect(screen.getByText(/GFW event/).textContent).toContain('evt-1')
 
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Create investigation case' })) })
-    expect(screen.getByRole('alert').textContent).toContain('Assessment window does not match the report window; re-sync and retry.')
-    expect(screen.getByRole('alert').textContent).toContain('Case case-1 was created')
+    const caseConflict = screen.getByText(/Assessment window does not match the report window/)
+    expect(caseConflict.textContent).toContain('Case case-1 was created')
 
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Re-sync with the same window and retry' })) })
 

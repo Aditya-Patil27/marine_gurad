@@ -1,7 +1,7 @@
 import { Component, useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
-import { Bell, Briefcase, Droplet, FileText, Map, Settings, Ship } from 'lucide-react'
-import { authApi, vesselsApi } from '../lib/api'
+import { Bell, Briefcase, Droplet, FileText, Home, Map, Radar, Settings, Ship, Waves } from 'lucide-react'
+import { authApi, operationsApi, vesselsApi } from '../lib/api'
 import usePolling from '../lib/usePolling'
 import useOnline from '../lib/useOnline'
 import { sourceLabel, timeIST } from '../lib/format'
@@ -10,11 +10,14 @@ import Logo from './Logo'
 import ReplayWindowControl from './ReplayWindowControl'
 
 const NAV = [
+  { to: '/overview', label: 'Overview', icon: Home },
   { to: '/map', label: 'Map', icon: Map },
   { to: '/alerts', label: 'Alerts', icon: Bell, badge: true },
   { to: '/vessels', label: 'Vessels', icon: Ship },
   { to: '/reports', label: 'Reports', icon: FileText },
   { to: '/cases', label: 'Cases', icon: Briefcase },
+  { to: '/ocean', label: 'Ocean', icon: Waves },
+  { to: '/detections', label: 'SAR', icon: Radar },
   { to: '/spills', label: 'Spills', icon: Droplet },
 ]
 
@@ -65,7 +68,7 @@ class PageBoundary extends Component {
   }
 }
 
-function DataModeBanner({ fleet }) {
+function DataModeBanner({ fleet, operations }) {
   const isOnline = useOnline()
   const isOffline = !isOnline
 
@@ -74,9 +77,13 @@ function DataModeBanner({ fleet }) {
 
   if (isOffline) {
     warning = true
+    const cache = operations?.cache?.environment ? ` Cached environment: ${String(operations.cache.environment).replaceAll('_', ' ')}.` : ''
     text = fleet.data
-      ? `Offline · last sync ${timeIST(fleet.updatedAt)} IST · Live AIS and new satellite data need a connection.`
-      : 'Offline · nothing synced yet · Live AIS and new satellite data need a connection.'
+      ? `Offline · last sync ${timeIST(fleet.updatedAt)} IST · Live AIS and new satellite data need a connection.${cache}`
+      : `Offline · nothing synced yet · Live AIS and new satellite data need a connection.${cache}`
+  } else if (operations?.remote_fetch_paused) {
+    warning = true
+    text = 'Remote acquisition is paused · cached and local records remain available.'
   } else if (fleet.error) {
     warning = true
     text = fleet.data
@@ -139,13 +146,14 @@ export default function Shell() {
   // The fleet is shared by the rail badge and every page, refreshed every 30 s.
   // Changing the window drops the previous answer instead of letting it repaint.
   const fleet = usePolling(() => vesselsApi.list(168, bounds), 30000, [windowKey])
+  const operations = usePolling(() => operationsApi.status(), 60000)
   const flagged = fleet.data?.vessels.filter((v) => v.level === 'high').length ?? 0
   const { pathname } = useLocation()
 
   return (
     <div className="grid h-screen grid-cols-[76px_1fr]">
-      <nav aria-label="Main" className="flex flex-col items-center gap-1.5 border-r border-line bg-white py-3.5">
-        <Logo className="mb-3.5" />
+      <nav aria-label="Main" className="flex min-h-0 flex-col items-center gap-1.5 overflow-y-auto border-r border-line bg-white py-3.5">
+        <Logo className="mb-3.5 shrink-0" />
         {NAV.map((item) => (
           <RailLink key={item.to} {...item} count={item.badge ? flagged : 0} />
         ))}
@@ -154,7 +162,7 @@ export default function Shell() {
         </div>
       </nav>
       <div className="flex min-h-0 min-w-0 flex-col">
-        <DataModeBanner fleet={fleet} />
+        <DataModeBanner fleet={fleet} operations={operations.data} />
         <ReplayWindowControl />
         <Account />
         <main className="relative min-h-0 min-w-0 flex-1">

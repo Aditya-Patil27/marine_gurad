@@ -141,6 +141,9 @@ def _route_dependencies(method, path):
 def test_identity_dependencies_resolve_before_csrf():
     prefix = "/api/v1/reports"
     assert _route_dependencies("GET", f"{prefix}/")[0] is auth_api.require_viewer
+    assert _route_dependencies("GET", f"{prefix}/{{report_id}}")[0] is auth_api.require_viewer
+    assert _route_dependencies("GET", f"{prefix}/{{report_id}}/manifest")[0] is auth_api.require_viewer
+    assert _route_dependencies("GET", f"{prefix}/{{report_id}}/export.pdf")[0] is auth_api.require_viewer
 
     create = _route_dependencies("POST", f"{prefix}/")
     assert create[0] is auth_api.require_analyst

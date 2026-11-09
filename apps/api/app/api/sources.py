@@ -20,7 +20,7 @@ from geoalchemy2.shape import from_shape
 from shapely.geometry import Point
 
 from app.api import aisstream, gfw
-from app.api.auth import csrf_protect, require_analyst
+from app.api.auth import csrf_protect, require_analyst, require_viewer
 from app.api.environment import select_latest_observation
 from app.api.ocean import load_satellite_observations
 from app.config import settings
@@ -193,7 +193,9 @@ def build_source_health(db: Session, now: datetime | None = None, runs: dict | N
 
 
 @router.get("/health")
-def source_health(db: Session = Depends(get_db)) -> dict:
+def source_health(
+    _viewer: UserResponse = Depends(require_viewer), db: Session = Depends(get_db),
+) -> dict:
     """Read-only source status; no provider request and no database write."""
     return build_source_health(db)
 
@@ -451,6 +453,8 @@ async def trigger_source_run(
     out-of-range GFW window is rejected before any provider request.
     """
     started_at = datetime.now(timezone.utc)
+    if settings.OFFLINE_MODE:
+        raise HTTPException(409, "Offline mode is enabled; remote source runs are paused")
     if payload.provider == "aisstream":
         return await _run_aisstream(db, payload, started_at, user.username)
     return await _run_gfw(db, payload, started_at, user.username)

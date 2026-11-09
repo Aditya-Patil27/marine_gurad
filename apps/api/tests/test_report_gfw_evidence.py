@@ -2,7 +2,7 @@
 import asyncio
 import json
 import os
-from datetime import date
+from datetime import date, datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
@@ -93,6 +93,48 @@ def test_report_without_source_evidence_stays_compatible():
         result = reports.create_report(reports.CreateReport(mmsi=MMSI), db=FakeDB())
     assert "gfw_event_evidence" not in result["snapshot"]
     assert result["integrity_ok"]
+
+
+def test_event_only_report_hashes_unavailable_ais_and_skips_vessel_lookup():
+    request = _request(event_only=True)
+    with patch.object(gfw, "regional_events", AsyncMock(return_value=PAGE)):
+        evidence = asyncio.run(reports.load_gfw_evidence(request))
+    with patch.object(reports, "get_vessel", side_effect=AssertionError("no vessel lookup")):
+        result = reports.create_report(request, gfw_evidence=evidence, db=FakeDB())
+    snapshot = result["snapshot"]
+    assert snapshot["evidence_basis"] == "gfw_event_only"
+    assert snapshot["ais_evidence"]["status"] == "unavailable"
+    assert snapshot["assessment"]["status"] == "unavailable"
+    assert "persisted_assessment" not in snapshot
+    assert snapshot["gfw_event_evidence"]["sha256"] == evidence["sha256"]
+    assert "not a vessel track" in snapshot["limitations"]
+    assert result["integrity_ok"]
+    snapshot["gfw_event_evidence"]["snapshot"]["event"]["id"] = "changed"
+    assert reports.digest(snapshot) != result["sha256"]
+
+
+@pytest.mark.parametrize("overrides", [
+    {"assessment_id": uuid4()},
+    {"window_start": datetime(2024, 1, 1), "window_end": datetime(2024, 2, 1)},
+    {"include_weather_context": True},
+    {"gfw_event_id": None, "gfw_start_date": None, "gfw_end_date": None},
+])
+def test_event_only_rejects_conflicting_basis_before_provider_work(overrides):
+    with patch.object(gfw, "regional_events", side_effect=AssertionError("provider called")):
+        with pytest.raises(HTTPException) as exc:
+            asyncio.run(reports.load_gfw_evidence(_request(event_only=True, **overrides)))
+    assert exc.value.status_code == 422
+
+
+def test_case_creation_requires_exactly_one_basis():
+    for payload in (
+        cases.CreateCase(title="No basis"),
+        cases.CreateCase(title="Both", assessment_id=uuid4(), report_id=1),
+    ):
+        with pytest.raises(HTTPException) as exc:
+            cases.create_case(payload, user=SimpleNamespace(username="analyst"), db=object())
+        assert exc.value.status_code == 422
+
 
 
 def test_missing_or_mismatched_event_fails_before_any_insert():
@@ -190,5 +232,102 @@ def test_event_evidence_survives_into_a_case_revision():
             assert persisted["snapshot"]["event"]["id"] == "event-1"
             assert persisted["snapshot"]["event"]["start"] == "2024-01-03T00:00:00Z"
             assert "not live tracking" in persisted["snapshot"]["limitations"]
+    finally:
+        engine.dispose()
+
+
+def _insert_report(db, snapshot, mmsi=MMSI):
+    return db.execute(text("""INSERT INTO incident_reports (mmsi, snapshot, sha256)
+        VALUES (:mmsi, CAST(:snapshot AS jsonb), :sha) RETURNING id"""),
+        {"mmsi": mmsi, "snapshot": json.dumps(snapshot), "sha": reports.digest(snapshot)}).one().id
+
+
+@pytest.mark.skipif(not os.getenv("TEST_DATABASE_URL"), reason="requires migrated disposable TEST_DATABASE_URL")
+def test_event_only_case_and_revision_round_trip_on_migration_014():
+    engine = create_engine(os.environ["TEST_DATABASE_URL"])
+    user = SimpleNamespace(username="analyst")
+    evidence = gfw.canonical_event_evidence(PAGE, "event-1")
+    try:
+        with Session(engine) as db:
+            nullable = db.execute(text("""SELECT is_nullable FROM information_schema.columns
+                WHERE table_name = 'investigation_cases' AND column_name = 'assessment_id'""")).scalar()
+            assert nullable == "YES", "migration 014 did not apply"
+
+            # No vessel row exists for MMSI: an event-only report must not need one.
+            created = reports.create_report(_request(event_only=True), gfw_evidence=evidence, db=db)
+            assert not db.execute(text("SELECT 1 FROM vessel_tracks WHERE mmsi = :mmsi"), {"mmsi": MMSI}).first()
+            assert created["snapshot"]["evidence_basis"] == "gfw_event_only"
+
+            case = cases.create_case(cases.CreateCase(report_id=created["id"], title="GFW review"),
+                                     user=user, db=db)
+            assert case["assessment_id"] is None and case["version"] == 1 and case["mmsi"] == MMSI
+            detail = cases.get_case(case["id"], db=db)
+            assert [(r["version"], r["integrity_ok"]) for r in detail["revisions"]] == [(1, True)]
+            assert detail["revisions"][0]["report_sha256"] == created["sha256"]
+            assert [event["event"] for event in detail["events"]] == ["opened"]
+
+            second = reports.create_report(_request(event_only=True), gfw_evidence=evidence, db=db)
+            revision = cases.add_revision(case["id"], cases.AddRevision(report_id=second["id"], expected_version=1),
+                                          user=user, db=db)
+            assert revision["version"] == 2
+
+            assessment_id = uuid4()
+            db.execute(text("""INSERT INTO vessel_assessments (id,mmsi,rule_version,source_mode,evaluated_at,
+                lookback_hours,score,level,factors,checks) VALUES (:id,:mmsi,'v1','unknown',now(),24,0.2,'low','[]','[]')"""),
+                {"id": str(assessment_id), "mmsi": 234567894})
+            db.commit()
+            backed = cases.create_case(cases.CreateCase(assessment_id=assessment_id, title="Assessment review"),
+                                       user=user, db=db)
+            assert str(backed["assessment_id"]) == str(assessment_id) and backed["version"] == 0
+    finally:
+        engine.dispose()
+
+
+@pytest.mark.skipif(not os.getenv("TEST_DATABASE_URL"), reason="requires migrated disposable TEST_DATABASE_URL")
+def test_event_only_case_rejects_unverified_reports_before_insert():
+    engine = create_engine(os.environ["TEST_DATABASE_URL"])
+    user = SimpleNamespace(username="analyst")
+    evidence = gfw.canonical_event_evidence(PAGE, "event-1")
+    try:
+        with Session(engine) as db:
+            missing = cases.CreateCase(report_id=999999999, title="Missing")
+            with pytest.raises(HTTPException) as not_found:
+                cases.create_case(missing, user=user, db=db)
+            assert not_found.value.status_code == 404
+
+            backed = _insert_report(db, {"mmsi": MMSI, "persisted_assessment": {"id": str(uuid4())}})
+            with pytest.raises(HTTPException) as wrong_basis:
+                cases.create_case(cases.CreateCase(report_id=backed, title="Wrong basis"), user=user, db=db)
+            assert wrong_basis.value.status_code == 409
+
+            tampered = _insert_report(db, {"mmsi": MMSI, "evidence_basis": "gfw_event_only",
+                                           "gfw_event_evidence": evidence})
+            db.execute(text("UPDATE incident_reports SET snapshot = jsonb_set(snapshot, '{evidence_basis}', '\"changed\"') WHERE id = :id"),
+                       {"id": tampered})
+            db.commit()
+            with pytest.raises(HTTPException) as integrity:
+                cases.create_case(cases.CreateCase(report_id=tampered, title="Tampered"), user=user, db=db)
+            assert integrity.value.status_code == 409
+
+            bad_evidence = json.loads(json.dumps(evidence))
+            bad_evidence["snapshot"]["event"]["id"] = "changed"
+            bad_canonical = _insert_report(db, {"mmsi": MMSI, "evidence_basis": "gfw_event_only",
+                                                "gfw_event_evidence": bad_evidence})
+            with pytest.raises(HTTPException) as canonical:
+                cases.create_case(cases.CreateCase(report_id=bad_canonical, title="Bad canonical"), user=user, db=db)
+            assert canonical.value.status_code == 409
+
+            other = gfw.canonical_event_evidence(
+                PAGE | {"data": {"entries": [PAGE["data"]["entries"][0] | {"vessel": {"id": "v1", "ssvid": "999999999"}}]}},
+                "event-1",
+            )
+            mismatched = _insert_report(db, {"mmsi": MMSI, "evidence_basis": "gfw_event_only",
+                                             "gfw_event_evidence": other})
+            with pytest.raises(HTTPException) as wrong_vessel:
+                cases.create_case(cases.CreateCase(report_id=mismatched, title="Wrong vessel"), user=user, db=db)
+            assert wrong_vessel.value.status_code == 409
+
+            assert not db.execute(text("SELECT 1 FROM investigation_cases WHERE title IN ('Missing','Wrong basis','Tampered','Bad canonical','Wrong vessel')")).first()
+            db.rollback()
     finally:
         engine.dispose()

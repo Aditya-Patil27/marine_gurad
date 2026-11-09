@@ -49,11 +49,13 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql://samudra:samudra_secret@postgres:5432/samudrasense_db}
       REDIS_URL: redis://redis:6379/0
+      DELIVERY_LOCAL_SINK_DIR: /app/data/delivery_sink
       PYTHONUNBUFFERED: 1
       SEED_DEMO_IF_EMPTY: ${SEED_DEMO_IF_EMPTY:-false}
     volumes:
       - ../apps/api:/app
       - model_weights:/app/models
+      - delivery_sink:/app/data/delivery_sink
     depends_on:
       postgres:
         condition: service_healthy
@@ -100,3 +102,4 @@ services:
 volumes:
   postgres_data:
   model_weights:
+  delivery_sink:

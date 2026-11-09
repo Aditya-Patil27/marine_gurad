@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 
-from app.api.auth import csrf_protect, require_analyst
+from app.api.auth import csrf_protect, require_analyst, require_viewer
 from app.schemas.user import UserResponse
 from app.services.chatbot import mia
 
@@ -88,7 +88,7 @@ async def send_message(
 
 
 @router.get("/health")
-async def chat_health():
+async def chat_health(_viewer: UserResponse = Depends(require_viewer)):
     """Check if chat service is available"""
     return {
         "status": "operational",

@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.config import settings
 from app.services import fleet, risk_engine
 
 router = APIRouter()
@@ -117,6 +118,10 @@ async def vessel_weather(mmsi: int, db: Session = Depends(get_db)):
     gap, reason = _select_gap(explanation)
     if gap is None:
         return _not_checked(reason)
+    if settings.OFFLINE_MODE:
+        result = _unavailable(gap)
+        result["reason"] = "Offline mode is enabled; no remote weather request was made."
+        return result
     params = _params(gap)
     try:
         async with httpx.AsyncClient(timeout=8.0) as client:
@@ -142,6 +147,10 @@ def event_weather_context(db: Session, mmsi: int):
     gap, reason = _select_gap(explanation)
     if gap is None:
         return _not_checked(reason)
+    if settings.OFFLINE_MODE:
+        result = _unavailable(gap)
+        result["reason"] = "Offline mode is enabled; no remote weather request was made."
+        return result
     params = _params(gap)
     try:
         with httpx.Client(timeout=8.0) as client:

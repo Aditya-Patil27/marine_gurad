@@ -1,0 +1,34 @@
+{
+  "schema_version": "1.0",
+  "feature": "F08 hotspot baseline evaluation",
+  "implementation_status": "implemented_verification_pending",
+  "real_evaluation_gate": {
+    "status": "blocked",
+    "blockers": [
+      "No bounded permitted historical fishing-effort export with observation and availability times is present.",
+      "The prepared SST subset covers only three observation days and lacks per-observation availability times.",
+      "No prepared chlorophyll history is present."
+    ]
+  },
+  "available_artifacts": [
+    {
+      "path": "apps/api/data/copernicus/gulf_mannar_sst_20261018_20.json",
+      "mode": "historical_subset",
+      "use": "descriptive SST context only"
+    },
+    {
+      "path": "ml/tests/fixtures/synthetic_effort_history.json",
+      "mode": "synthetic",
+      "use": "pipeline software checks only"
+    }
+  ],
+  "claims": {
+    "forecast_accuracy": "not_established",
+    "illegal_activity_prediction": "not_claimed",
+    "satellite_tasking": "not_claimed"
+  },
+  "verification": {
+    "status": "not_run",
+    "reason": "Deferred to the parent combined v1 verification by instruction."
+  }
+}

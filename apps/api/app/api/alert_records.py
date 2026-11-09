@@ -37,6 +37,7 @@ from app.api.alerts import (
 from app.api.auth import csrf_protect, require_analyst, require_viewer
 from app.database import get_db
 from app.schemas.user import UserResponse
+from app.services.fleet import WindowSelectionError, resolve_window
 
 router = APIRouter()
 
@@ -96,6 +97,14 @@ def record_to_dict(row) -> dict:
     location = {}
     if mapping["location_lat"] is not None and mapping["location_lon"] is not None:
         location = {"lat": mapping["location_lat"], "lon": mapping["location_lon"]}
+    clear_scenario = mapping.get("clear_scenario") or {
+        "status": "review_only",
+        "scenario": (
+            "Verified continuous event-time observations may clear an AIS-gap contribution; "
+            "each other evidence factor must be reviewed independently."
+        ),
+        "computed_score": None,
+    }
     return {
         "id": str(mapping["id"]),
         "type": mapping["type"],
@@ -112,6 +121,13 @@ def record_to_dict(row) -> dict:
         "source": mapping["source"],
         "source_mode": mapping["source_mode"],
         "status": mapping["status"],
+        "reviewer_state": mapping.get("reviewer_state") or (
+            "closed" if mapping["status"] == "resolved" else
+            "in_review" if mapping["status"] == "acknowledged" else "new"
+        ),
+        "assigned_to": mapping.get("assigned_to"),
+        "resolution_reason": mapping.get("resolution_reason") or mapping["resolution_note"],
+        "clear_scenario": clear_scenario,
         "version": mapping["version"],
         "acknowledged_by": mapping["acknowledged_by"],
         "acknowledged_at": (
@@ -173,6 +189,16 @@ def _fetch_detail(db: Session, alert_id_value) -> dict:
         }
         for event in events
     ]
+    notes = db.execute(
+        text(
+            """SELECT id, author, note, created_at FROM alert_notes
+               WHERE alert_id = :id ORDER BY created_at, id"""
+        ),
+        {"id": str(alert_id_value)},
+    ).mappings()
+    result["notes"] = [
+        {**dict(note), "created_at": as_utc(note["created_at"])} for note in notes
+    ]
     return result
 
 
@@ -214,6 +240,14 @@ def _validate_severity_filter(value: Optional[str]) -> Optional[str]:
 # ---------------------------------------------------------------------------
 
 
+class SyncRequest(BaseModel):
+    """Optional selection; no body preserves the legacy rolling last-hour sync."""
+
+    lookback_hours: int = 1
+    window_start: Optional[datetime] = None
+    window_end: Optional[datetime] = None
+
+
 class SyncResponse(BaseModel):
     observed: int
     created: int
@@ -222,6 +256,8 @@ class SyncResponse(BaseModel):
     skipped_resolved: int
     source_mode: str
     synced_at: datetime
+    window: dict
+    stored_scope: str = "global"
 
 
 class TransitionRequest(BaseModel):
@@ -239,12 +275,32 @@ class ResolveRequest(TransitionRequest):
 
 @router.post("/sync", response_model=SyncResponse)
 def sync_alerts(
+    payload: Optional[SyncRequest] = None,
     _analyst: UserResponse = Depends(require_analyst),
     _csrf: None = Depends(csrf_protect),
     db: Session = Depends(get_db),
 ) -> SyncResponse:
-    """Persist the current deduplicated generator output, preserving lifecycle."""
-    raw_alerts = AlertGenerator(db).check_mpa_violations()
+    """Persist the current deduplicated generator output, preserving lifecycle.
+
+    The optional body selects the observation window with the same validation as
+    the other replay routes. Without it the legacy rolling last-hour scan is
+    unchanged. Stored records are always a global list; the window only controls
+    which observations this run reads.
+    """
+    try:
+        window = resolve_window(
+            hours=(payload.lookback_hours if payload else 1),
+            start=(payload.window_start if payload else None),
+            end=(payload.window_end if payload else None),
+        )
+    except WindowSelectionError as exc:
+        raise HTTPException(422, str(exc))
+
+    generator = AlertGenerator(db)
+    if payload is not None:
+        raw_alerts = generator.check_mpa_violations(window=window)
+    else:
+        raw_alerts = generator.check_mpa_violations()
     grouped = deduplicate_alerts(raw_alerts)
 
     now = datetime.now(timezone.utc)
@@ -306,7 +362,7 @@ def sync_alerts(
 
         existing = db.execute(
             text(
-                """SELECT status, last_observed_at, severity
+                """SELECT status, first_observed_at, last_observed_at, severity
                    FROM alert_records
                    WHERE type = :type AND mmsi = :mmsi AND zone_key = :zone_key
                    FOR UPDATE"""
@@ -322,7 +378,11 @@ def sync_alerts(
             skipped_resolved += 1
             continue
 
-        advanced = observed > as_utc(existing.last_observed_at) or severity != existing.severity
+        advanced = (
+            observed < as_utc(existing.first_observed_at)
+            or observed > as_utc(existing.last_observed_at)
+            or severity != existing.severity
+        )
         db.execute(
             text(
                 """UPDATE alert_records SET
@@ -359,6 +419,7 @@ def sync_alerts(
         skipped_resolved=skipped_resolved,
         source_mode=summary_mode(modes),
         synced_at=now,
+        window=window.as_dict(),
     )
 
 
@@ -434,6 +495,7 @@ def acknowledge_alert(
         text(
             """UPDATE alert_records SET
                    status = 'acknowledged',
+                   reviewer_state = 'in_review',
                    acknowledged_by = :actor,
                    acknowledged_at = :now,
                    version = version + 1,
@@ -466,9 +528,11 @@ def resolve_alert(
         text(
             """UPDATE alert_records SET
                    status = 'resolved',
+                   reviewer_state = 'closed',
                    resolved_by = :actor,
                    resolved_at = :now,
                    resolution_note = :note,
+                   resolution_reason = :note,
                    version = version + 1,
                    updated_at = :now
                WHERE id = :id"""
@@ -498,6 +562,7 @@ def reopen_alert(
         text(
             """UPDATE alert_records SET
                    status = 'open',
+                   reviewer_state = 'in_review',
                    version = version + 1,
                    updated_at = :now
                WHERE id = :id"""

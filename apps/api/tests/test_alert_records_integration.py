@@ -3,7 +3,7 @@
 Requires ``TEST_DATABASE_URL``. Never uses the shared development database.
 """
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import patch
 from uuid import UUID, uuid4
@@ -45,17 +45,17 @@ def _make_row(**overrides):
     return row
 
 
-def _sync(db, rows):
+def _sync(db, rows, payload=None):
     class Generator:
         def __init__(self, _db):
             pass
 
-        def check_mpa_violations(self):
+        def check_mpa_violations(self, window=None):
             return [dict(row) for row in rows]
 
     user = SimpleNamespace(username="analyst1")
     with patch.object(alert_records, "AlertGenerator", Generator):
-        return alert_records.sync_alerts(_analyst=user, _csrf=None, db=db)
+        return alert_records.sync_alerts(payload=payload, _analyst=user, _csrf=None, db=db)
 
 
 def _cleanup(engine):
@@ -133,6 +133,55 @@ def test_alert_record_constraints_are_bounded():
                     "mode": "synthetic", "status": "closed",
                 })
             db.rollback()
+    finally:
+        _cleanup(engine)
+        engine.dispose()
+
+
+def test_window_scoped_sync_preserves_global_records_and_accepts_late_observations():
+    engine = create_engine(os.environ["TEST_DATABASE_URL"])
+    payload = alert_records.SyncRequest(
+        window_start=datetime(2026, 10, 31, tzinfo=timezone.utc),
+        window_end=datetime(2026, 11, 2, tzinfo=timezone.utc),
+    )
+    try:
+        _cleanup(engine)
+        with Session(engine) as db:
+            first = _sync(db, [_make_row(timestamp=datetime(2026, 11, 1, 9, 0))], payload)
+            assert first.created == 1
+            assert first.window["mode"] == "historical"
+            assert first.window["start"] == "2026-10-31T00:00:00Z"
+            assert first.stored_scope == "global"
+            record_id = str(alerts.alert_id(_make_row()))
+            stored = _record(db, record_id)
+            assert stored.first_observed_at.replace(tzinfo=None) == datetime(2026, 11, 1, 9, 0)
+            assert stored.last_observed_at.replace(tzinfo=None) == datetime(2026, 11, 1, 9, 0)
+            assert _event_count(db, record_id) == 1
+
+            # A late record inside the same window extends the first observation
+            # backwards without moving the last observation or duplicating the row.
+            late = _make_row(timestamp=datetime(2026, 10, 31, 22, 0))
+            second = _sync(db, [late], payload)
+            assert second.created == 0
+            assert second.updated == 1
+            extended = _record(db, record_id)
+            assert extended.first_observed_at.replace(tzinfo=None) == datetime(2026, 10, 31, 22, 0)
+            assert extended.last_observed_at.replace(tzinfo=None) == datetime(2026, 11, 1, 9, 0)
+
+            repeated = _sync(db, [late], payload)
+            assert repeated.unchanged == 1
+            assert repeated.updated == 0
+            assert _event_count(db, record_id) == 2
+
+            user = SimpleNamespace(username="analyst1")
+            alert_records.resolve_alert(
+                UUID(record_id),
+                alert_records.ResolveRequest(expected_version=0, note="checked"),
+                user=user, _csrf=None, db=db,
+            )
+            after_resolve = _sync(db, [_make_row(timestamp=datetime(2026, 11, 1, 12, 0))], payload)
+            assert after_resolve.skipped_resolved == 1
+            assert _record(db, record_id).status == "resolved"
     finally:
         _cleanup(engine)
         engine.dispose()

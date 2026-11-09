@@ -112,6 +112,12 @@ describe('map page', () => {
     create.mockRestore()
   })
 
+  it('names the page with a heading for assistive technology', async () => {
+    await open('/map')
+
+    expect(screen.getByRole('heading', { name: 'Vessel map' })).toBeTruthy()
+  })
+
   it('lists the vessels that need attention', async () => {
     await open('/map')
 

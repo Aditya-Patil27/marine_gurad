@@ -1,21 +1,50 @@
-# Current A/B work
+# Current v1 handoff
 
-Shared baseline: A-005B/R1 historical replay backend is complete through migration 013. GitHub branches `ap` and `handoff/b-005` publish the backend, contracts and preserved partial B work. B's existing `b/sprint` branch was left untouched. Credentials, local data, CodeGraph state and agent transcripts remain local.
+Updated 9 November 2026. Branch: `ap`.
 
-## A — completed handoff
+The integrated v1 implementation is complete and its focused automated checks
+have passed. The current owner records are:
 
-[A-004E](completed/A-004E.md) is complete: one selected historical GFW event can be re-fetched from its bounded page and bound, with optional independently dated SST context, into the authenticated hashed report/case revision path. No migration or parallel evidence system was added. A must not reopen this slice without a concrete defect.
+- A/backend: `tasks/parallel/A-v1.md`
+- B/frontend: `tasks/parallel/B-v1.md` and `tasks/parallel/B-status.md`
+- C/evaluation: `tasks/parallel/C-v1.md`
 
-The next independent A work is remaining legacy route protection and bounded provider jobs. It must use a separate backend-only brief and must not edit `apps/web/**` or resume B's frontend session.
+## Verified implementation
 
-## B — continue existing partial work
+- The isolated A database migrated from 016 to `017 (head)`; the shared
+  database was neither reset nor seeded.
+- Backend focused checks: 27 passed, 11 skipped (database-gated fixtures).
+- Frontend checks: 17 files / 221 tests passed; production build completed.
+- ML baseline checks: 6 tests passed; synthetic CLI produced two folds and
+  truthfully reported its real-data gate `blocked`.
+- The isolated API at `:8001` returned 200 for `/health` and `/openapi.json`
+  after restart, exposing 68 versioned API paths.
 
-Continue [B-005](B-005.md) from the partial frontend checkpoint already present on `ap`. B owns `apps/web/**`, relevant frontend tests and demo UI docs. Inspect the existing replay helpers/components before editing; do not reimplement them blindly. Apply migrations through 013 in B's Docker database, complete the map → vessel → assessment → case/report journey, handle 409 re-sync, and record an actual browser journey.
+## What A completed
 
-B should fetch `origin/handoff/b-005` and continue from that branch in a separate checkout/worktree, or integrate it into B's own branch using the team's normal Git workflow. Do not force-update `b/sprint` or discard B-local work.
+A owns the v1 backend: migration 017, bounded idempotent AIS import and
+quarantine, alert review state, protected-boundary provenance, SAR ambiguity
+and unidentified-object cases, evidence graph/weather/coverage triage,
+descriptive SST scan planning, operational source jobs/status, exact-hash
+local report delivery and an explicit unavailable spill capability contract.
 
-B must not change API, migrations or backend contracts. The completed A-004E contract is available for the next browser caller integration; preserve its exact GFW page bounds and truthful historical-event limitations. After B-005, connect existing stored alert/triage and case lifecycle APIs to their screens.
+## What B completed
 
-## OpenCode efficiency
+B owns the professional operational frontend: Overview, Ocean, SAR, alerts,
+evidence, Operations, reports/delivery and spill capability/job screens. The
+active product contains no presenter/demo-plan UI and no client-side synthetic
+spill trajectory. It represents unavailable external capabilities as unknown or
+unavailable.
 
-OpenCode has Ponytail 5.3.3 installed once in global configuration. `AGENTS.md` also carries the same minimal implementation rules. Every new session must follow both: inspect callers and risks first, reuse existing code, make the smallest complete change, avoid speculative abstractions/dependencies and run only focused meaningful checks.
+## Remaining human/external gates
+
+- One recorded browser journey against the isolated 017 stack for the final
+  demo video.
+- PyGNOME plus compatible wind/current/coastline forcing for real spill runs.
+- Permitted point SAR, licensed verified boundaries/rules, and bounded
+  availability-aware effort/chlorophyll/current history for empirical claims.
+- Rotate/revoke historical provider values that were previously exposed in
+  Git history; `.env.example` itself is sanitized.
+
+Do not claim live coverage, legal conclusions, a real spill forecast, external
+delivery receipt or empirical hotspot accuracy without those gates.

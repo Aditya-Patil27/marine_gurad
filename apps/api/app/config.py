@@ -81,6 +81,11 @@ class Settings(BaseSettings):
     # Optional: Redis (only if using Celery)
     REDIS_URL: str = "redis://localhost:6379/0"
 
+    # Offline-safe report delivery target. V1 writes only approved report
+    # manifests addressed to the reserved .test domain into this local sink.
+    DELIVERY_LOCAL_SINK_DIR: str = "data/delivery_sink"
+    OFFLINE_MODE: bool = False
+
     # Copernicus Marine Service API
     COPERNICUS_CLIENT_ID: str = ""
     COPERNICUS_CLIENT_SECRET: str = ""

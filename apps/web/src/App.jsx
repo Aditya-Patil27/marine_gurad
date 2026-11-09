@@ -1,7 +1,11 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import Shell from './components/Shell'
 import MapPage from './pages/MapPage'
-import NotBuiltYet from './pages/NotBuiltYet'
+import Overview from './pages/Overview'
+import Operations from './pages/Operations'
+import SpillPage from './pages/SpillPage'
+import OceanPage from './pages/OceanPage'
+import DetectionsPage from './pages/DetectionsPage'
 import { AlertsPage, EvidencePage, InvestigationCasesPage, ReportsPage } from './pages/Cases'
 import { ReplayWindowProvider } from './lib/replayWindow'
 
@@ -10,7 +14,8 @@ export default function App() {
     <ReplayWindowProvider>
       <Routes>
         <Route element={<Shell />}>
-          <Route index element={<Navigate to="/map" replace />} />
+          <Route index element={<Navigate to="/overview" replace />} />
+          <Route path="overview" element={<Overview />} />
           <Route path="map" element={<MapPage />} />
           <Route
             path="alerts"
@@ -24,16 +29,13 @@ export default function App() {
             path="reports"
             element={<ReportsPage />}
           />
+          <Route path="reports/:id" element={<ReportsPage />} />
           <Route path="cases" element={<InvestigationCasesPage />} />
-          <Route
-            path="spills"
-            element={<NotBuiltYet title="Spill simulator" what="Drop a pin to see where oil drifts in 6, 12 and 24 hours and what it reaches." />}
-          />
-          <Route
-            path="settings"
-            element={<NotBuiltYet title="Settings" what="Alert thresholds, data sources and who receives reports." />}
-          />
-          <Route path="*" element={<Navigate to="/map" replace />} />
+          <Route path="ocean" element={<OceanPage />} />
+          <Route path="detections" element={<DetectionsPage />} />
+          <Route path="spills" element={<SpillPage />} />
+          <Route path="settings" element={<Operations />} />
+          <Route path="*" element={<Navigate to="/overview" replace />} />
         </Route>
       </Routes>
     </ReplayWindowProvider>

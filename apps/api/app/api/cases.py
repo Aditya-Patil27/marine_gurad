@@ -1,4 +1,4 @@
-"""Stable investigation cases linking an assessment to report revisions."""
+"""Stable investigation cases for vessels, verified events, or unidentified SAR objects."""
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -16,7 +16,9 @@ router = APIRouter()
 
 
 class CreateCase(BaseModel):
-    assessment_id: UUID
+    assessment_id: UUID | None = None
+    report_id: int | None = Field(default=None, gt=0, description="Initial event-only report")
+    sar_detection_id: int | None = Field(default=None, gt=0, description="Unidentified or ambiguous SAR object")
     title: str = Field(min_length=1, max_length=200)
 
 
@@ -38,6 +40,20 @@ def _append_event(db: Session, case_id: UUID | str, event: str, actor: str, note
     )
 
 
+def _verified_event_evidence(report, mmsi: int) -> None:
+    """Reject any report that is not a verified, source-bound GFW event only."""
+    snapshot = report.snapshot or {}
+    if snapshot.get("evidence_basis") != "gfw_event_only":
+        raise HTTPException(409, "Report is not an event-only GFW report")
+    evidence = snapshot.get("gfw_event_evidence") or {}
+    canonical = evidence.get("snapshot")
+    if not isinstance(canonical, dict) or digest(canonical) != evidence.get("sha256"):
+        raise HTTPException(409, "Report's canonical GFW event evidence failed verification")
+    event = canonical.get("event") or {}
+    if not event.get("id") or str((event.get("vessel") or {}).get("ssvid")) != str(mmsi):
+        raise HTTPException(409, "Report's GFW event does not identify this case's vessel")
+
+
 @router.get("/")
 def list_cases(limit: int = Query(50, ge=1, le=100), offset: int = Query(0, ge=0),
                _viewer: UserResponse = Depends(require_viewer), db: Session = Depends(get_db)):
@@ -52,6 +68,66 @@ def create_case(payload: CreateCase, user: UserResponse = Depends(require_analys
     title = payload.title.strip()
     if not title:
         raise HTTPException(422, "Case title must not be empty")
+    bases = sum(value is not None for value in (
+        payload.assessment_id, payload.report_id, payload.sar_detection_id
+    ))
+    if bases != 1:
+        raise HTTPException(
+            422,
+            "Case creation requires exactly one basis: assessment_id, initial event-only "
+            "report_id, or sar_detection_id; no case was created.",
+        )
+    if payload.sar_detection_id is not None:
+        detection = db.execute(text("""SELECT id,scene_id,source,association_state,matched_mmsi
+            FROM sar_detections WHERE id=:id FOR SHARE"""),
+            {"id": payload.sar_detection_id}).first()
+        if detection is None:
+            raise HTTPException(404, "SAR detection not found")
+        if detection.association_state == "matched":
+            raise HTTPException(409, "Matched SAR evidence must use a vessel-based investigation")
+        case_id = uuid4()
+        try:
+            row = db.execute(text("""INSERT INTO investigation_cases
+                (id,mmsi,assessment_id,sar_detection_id,title,created_by,version)
+                VALUES (:id,NULL,NULL,:sar,:title,:actor,0) RETURNING *"""), {
+                "id": str(case_id), "sar": detection.id, "title": title,
+                "actor": user.username,
+            }).one()
+            _append_event(
+                db, case_id, "opened", user.username,
+                f"Unidentified SAR object {detection.source}/{detection.scene_id}; association {detection.association_state}",
+            )
+            db.commit()
+        except IntegrityError as exc:
+            db.rollback()
+            raise HTTPException(409, "Case could not be created") from exc
+        return dict(row._mapping)
+    if payload.report_id is not None:
+        # Provider work finished when the report was created; keep this transaction
+        # to the verified report, the case, its opened event and revision 1.
+        report = db.execute(text("SELECT * FROM incident_reports WHERE id = :id FOR SHARE"),
+                            {"id": payload.report_id}).first()
+        if report is None:
+            raise HTTPException(404, "Report not found")
+        if digest(report.snapshot) != report.sha256:
+            raise HTTPException(409, "Report integrity check failed")
+        _verified_event_evidence(report, report.mmsi)
+        case_id = uuid4()
+        try:
+            row = db.execute(text("""INSERT INTO investigation_cases (id, mmsi, assessment_id, title, created_by, version)
+            VALUES (:id, :mmsi, NULL, :title, :created_by, 1) RETURNING *"""),
+            {"id": str(case_id), "mmsi": report.mmsi, "title": title, "created_by": user.username}).one()
+            _append_event(db, case_id, "opened", user.username)
+            db.execute(text("""INSERT INTO investigation_case_revisions
+                (case_id, version, report_id, report_sha256, created_by)
+                VALUES (:id, 1, :report_id, :sha, :created_by)"""),
+                {"id": str(case_id), "report_id": payload.report_id, "sha": report.sha256,
+                 "created_by": user.username})
+            db.commit()
+        except IntegrityError as exc:
+            db.rollback()
+            raise HTTPException(409, "Case could not be created") from exc
+        return dict(row._mapping)
     assessment = db.execute(text("SELECT mmsi FROM vessel_assessments WHERE id = :id"),
                             {"id": str(payload.assessment_id)}).first()
     if assessment is None:
@@ -93,6 +169,12 @@ def get_case(case_id: UUID, _viewer: UserResponse = Depends(require_viewer), db:
         {"id": str(case_id)},
     )
     result["events"] = [dict(event._mapping) for event in events]
+    result["sar_detection"] = None
+    if result.get("sar_detection_id") is not None:
+        detection = db.execute(text("""SELECT id,observed_at,latitude,longitude,source,scene_id,
+            confidence,association_state,license_reference FROM sar_detections WHERE id=:id"""),
+            {"id": result["sar_detection_id"]}).mappings().first()
+        result["sar_detection"] = dict(detection) if detection is not None else None
     return result
 
 
@@ -166,9 +248,12 @@ def add_revision(case_id: UUID, payload: AddRevision, user: UserResponse = Depen
         raise HTTPException(404, "Report not found for this case's vessel")
     if digest(report.snapshot) != report.sha256:
         raise HTTPException(409, "Report integrity check failed")
-    captured = report.snapshot.get("persisted_assessment") or {}
-    if str(captured.get("id")) != str(case.assessment_id):
-        raise HTTPException(409, "Report must include this case's assessment")
+    if case.assessment_id is None:
+        _verified_event_evidence(report, case.mmsi)
+    else:
+        captured = report.snapshot.get("persisted_assessment") or {}
+        if str(captured.get("id")) != str(case.assessment_id):
+            raise HTTPException(409, "Report must include this case's assessment")
     version = case.version + 1
     try:
         revision = db.execute(text("""INSERT INTO investigation_case_revisions

@@ -3,6 +3,7 @@ from geoalchemy2 import Geometry
 from datetime import datetime
 from typing import Optional, Any
 from enum import Enum
+from sqlalchemy.dialects.postgresql import JSONB
 
 
 class VesselType(str, Enum):
@@ -143,6 +144,9 @@ class VesselTrack(SQLModel, table=True):
     # from a configured provider or a caller's claim.
     source: str = Field(default="unknown", max_length=120)
     source_mode: str = Field(default="unknown", max_length=20)
+    source_record_id: Optional[str] = Field(default=None, max_length=160)
+    ingested_at: datetime = Field(default_factory=datetime.utcnow)
+    quality_flags: list = Field(default_factory=list, sa_column=Column(JSONB, nullable=False))
 
     class Config:
         arbitrary_types_allowed = True

@@ -9,7 +9,7 @@ import json
 from datetime import date, datetime, timezone
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 from sqlalchemy import text
@@ -31,14 +31,150 @@ def _naive_utc(value: datetime) -> datetime:
     return value.astimezone(timezone.utc).replace(tzinfo=None) if value.tzinfo else value
 
 
+def canonical_bytes(snapshot) -> bytes:
+    """Stable UTF-8 bytes used by the report checksum and export manifest."""
+    return json.dumps(snapshot, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+
+
 def digest(snapshot):
-    return hashlib.sha256(json.dumps(snapshot, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()).hexdigest()
+    return hashlib.sha256(canonical_bytes(snapshot)).hexdigest()
+
+
+def _stored_bytes(value) -> bytes | None:
+    stored = value.get("canonical_snapshot")
+    if stored is None:
+        return None
+    return stored.tobytes() if isinstance(stored, memoryview) else bytes(stored)
 
 
 def report(row):
     value = dict(row._mapping)
-    value["integrity_ok"] = digest(value["snapshot"]) == value["sha256"]
+    canonical = canonical_bytes(value["snapshot"])
+    stored = _stored_bytes(value)
+    value["integrity_ok"] = (
+        hashlib.sha256(stored or canonical).hexdigest() == value["sha256"]
+        and (stored is None or stored == canonical)
+    )
+    value["canonical_bytes_available"] = stored is not None
+    value.pop("canonical_snapshot", None)
     return value
+
+
+def _validated_manifest(row, db: Session) -> dict:
+    """Return export metadata only when the saved report still proves its sources."""
+    value = dict(row._mapping)
+    snapshot = value["snapshot"]
+    canonical = canonical_bytes(snapshot)
+    stored = _stored_bytes(value)
+    if hashlib.sha256(stored or canonical).hexdigest() != value["sha256"] or (
+        stored is not None and stored != canonical
+    ):
+        raise HTTPException(409, "Evidence snapshot failed integrity verification")
+    if str(snapshot.get("mmsi")) != str(value["mmsi"]):
+        raise HTTPException(409, "Report snapshot does not identify its stored vessel")
+
+    references = []
+    assessment = snapshot.get("persisted_assessment")
+    if assessment is not None:
+        assessment_id = assessment.get("id") if isinstance(assessment, dict) else None
+        linked = db.execute(
+            text("SELECT mmsi FROM vessel_assessments WHERE id = :id"), {"id": str(assessment_id)}
+        ).first() if assessment_id else None
+        if linked is None or str(linked.mmsi) != str(value["mmsi"]):
+            raise HTTPException(409, "Report's persisted assessment reference is missing or mismatched")
+        references.append({"type": "persisted_assessment", "id": str(assessment_id)})
+
+    event_evidence = snapshot.get("gfw_event_evidence")
+    if event_evidence is not None:
+        event_snapshot = event_evidence.get("snapshot") if isinstance(event_evidence, dict) else None
+        event = event_snapshot.get("event") if isinstance(event_snapshot, dict) else None
+        if (
+            not isinstance(event, dict)
+            or digest(event_snapshot) != event_evidence.get("sha256")
+            or str((event.get("vessel") or {}).get("ssvid")) != str(value["mmsi"])
+        ):
+            raise HTTPException(409, "Report's canonical GFW event reference failed verification")
+        references.append({
+            "type": "gfw_event",
+            "id": event.get("id"),
+            "sha256": event_evidence["sha256"],
+        })
+    if snapshot.get("evidence_basis") == "gfw_event_only" and event_evidence is None:
+        raise HTTPException(409, "Event-only report is missing its canonical GFW event reference")
+
+    return {
+        "report_id": value["id"],
+        "mmsi": value["mmsi"],
+        "canonical_json": canonical.decode("utf-8"),
+        "canonical_sha256": value["sha256"],
+        "canonical_bytes_available": stored is not None,
+        "checksum_note": "SHA-256 is an integrity checksum for this stored snapshot, not a digital signature or proof of source authenticity.",
+        "evidence_references": references,
+        "signed_at": value["signed_at"],
+        "signed_by": value["signed_by"],
+    }
+
+
+def _pdf_escape(value: str) -> str:
+    return value.encode("latin-1", "replace").decode("latin-1").replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+
+
+def _reviewed_pdf(manifest: dict) -> bytes:
+    """A small deterministic PDF; it deliberately contains no generation clock."""
+    lines = [
+        "SamudraSense reviewed evidence report",
+        f"Report ID: {manifest['report_id']}",
+        f"Vessel MMSI: {manifest['mmsi']}",
+        f"Approved by: {manifest['signed_by']}",
+        f"Approved at: {manifest['signed_at']}",
+        f"Snapshot SHA-256: {manifest['canonical_sha256']}",
+        "Evidence references:",
+    ]
+    for reference in manifest["evidence_references"]:
+        lines.append("- " + ", ".join(f"{key}={value}" for key, value in reference.items()))
+    if not manifest["evidence_references"]:
+        lines.append("- Server-generated vessel evidence snapshot (no external reference id)")
+    lines.extend([
+        "Checksum scope: canonical UTF-8 JSON in the accompanying manifest.",
+        "This is a human-review aid, not proof of illegal activity.",
+    ])
+    content = ["BT", "/F1 10 Tf", "50 760 Td", "13 TL"]
+    for line in lines:
+        content.append(f"({_pdf_escape(line[:150])}) Tj")
+        content.append("T*")
+    content.append("ET")
+    stream = "\n".join(content).encode("latin-1")
+    objects = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>",
+        b"<< /Length " + str(len(stream)).encode("ascii") + b" >>\nstream\n" + stream + b"\nendstream",
+    ]
+    output = bytearray(b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n")
+    offsets = [0]
+    for index, obj in enumerate(objects, 1):
+        offsets.append(len(output))
+        output.extend(f"{index} 0 obj\n".encode("ascii"))
+        output.extend(obj)
+        output.extend(b"\nendobj\n")
+    xref = len(output)
+    output.extend(f"xref\n0 {len(objects) + 1}\n0000000000 65535 f \n".encode("ascii"))
+    for offset in offsets[1:]:
+        output.extend(f"{offset:010d} 00000 n \n".encode("ascii"))
+    output.extend(f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n".encode("ascii"))
+    return bytes(output)
+
+
+def _insert_report(db: Session, mmsi: int, snapshot: dict):
+    canonical = canonical_bytes(snapshot)
+    return db.execute(text("""INSERT INTO incident_reports (mmsi, snapshot, sha256, canonical_snapshot)
+        VALUES (:mmsi, CAST(:snapshot AS jsonb), :sha, :canonical_snapshot) RETURNING *"""), {
+            "mmsi": mmsi,
+            "snapshot": json.dumps(snapshot, ensure_ascii=False),
+            "sha": hashlib.sha256(canonical).hexdigest(),
+            "canonical_snapshot": canonical,
+        }).one()
 
 
 class CreateReport(BaseModel):
@@ -55,10 +191,37 @@ class CreateReport(BaseModel):
     gfw_offset: int = Field(default=0, ge=0, le=10000)
     gfw_limit: int = Field(default=20, ge=1, le=50)
     include_gfw_ocean_context: bool = False
+    event_only: bool = False
+
+
+def event_only_limitations() -> str:
+    return (
+        "A GFW event is a historical, inferred event location. It is not a vessel "
+        "track, live position, fishing proof or proof of illegality; no AIS "
+        "observation or risk assessment supports this record."
+    )
 
 
 async def load_gfw_evidence(request: CreateReport) -> dict | None:
     """Re-fetch and canonicalize the selected GFW event before any report insert."""
+    if request.event_only:
+        if (
+            request.assessment_id is not None
+            or request.window_start is not None
+            or request.window_end is not None
+            or request.include_weather_context
+        ):
+            raise HTTPException(
+                422,
+                "event_only cannot be combined with assessment_id, window_start, "
+                "window_end or include_weather_context; no report was created.",
+            )
+        if request.gfw_event_id is None:
+            raise HTTPException(
+                422,
+                "event_only requires gfw_event_id with gfw_start_date and "
+                "gfw_end_date; no report was created.",
+            )
     if request.gfw_event_id is None:
         if request.gfw_start_date is not None or request.gfw_end_date is not None:
             raise HTTPException(422, "gfw_start_date and gfw_end_date require gfw_event_id")
@@ -87,6 +250,7 @@ class SignReport(BaseModel):
         description="Legacy typed name; accepted but ignored. Identity comes from the session.",
     )
     reviewed: bool
+    expected_sha256: str | None = Field(default=None, min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")
 
 
 @router.get("/")
@@ -95,6 +259,36 @@ def list_reports(
     db: Session = Depends(get_db),
 ):
     return [report(row) for row in db.execute(text("SELECT * FROM incident_reports ORDER BY created_at DESC LIMIT 100"))]
+
+
+@router.get("/{report_id}")
+def get_report(report_id: int, _viewer: UserResponse = Depends(require_viewer), db: Session = Depends(get_db)):
+    row = db.execute(text("SELECT * FROM incident_reports WHERE id = :id"), {"id": report_id}).first()
+    if row is None:
+        raise HTTPException(404, "Report not found")
+    return report(row)
+
+
+@router.get("/{report_id}/manifest")
+def report_manifest(report_id: int, _viewer: UserResponse = Depends(require_viewer), db: Session = Depends(get_db)):
+    row = db.execute(text("SELECT * FROM incident_reports WHERE id = :id"), {"id": report_id}).first()
+    if row is None:
+        raise HTTPException(404, "Report not found")
+    return _validated_manifest(row, db)
+
+
+@router.get("/{report_id}/export.pdf")
+def export_report_pdf(report_id: int, _viewer: UserResponse = Depends(require_viewer), db: Session = Depends(get_db)):
+    row = db.execute(text("SELECT * FROM incident_reports WHERE id = :id"), {"id": report_id}).first()
+    if row is None:
+        raise HTTPException(404, "Report not found")
+    manifest = _validated_manifest(row, db)
+    if manifest["signed_at"] is None:
+        raise HTTPException(409, "Report must be approved before export")
+    return Response(
+        _reviewed_pdf(manifest), media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="samudrasense-report-{report_id}.pdf"'},
+    )
 
 
 @router.post("/", status_code=201)
@@ -109,6 +303,38 @@ def create_report(
 ):
     # The same bounded UTC window as the evidence/assessment callers. When
     # window_start/window_end are omitted, keep the existing rolling call shape.
+    if request.event_only:
+        # No vessel lookup, assessment or risk score: a GFW event alone cannot
+        # produce them, and missing AIS must stay visibly missing.
+        if not isinstance(gfw_evidence, dict):
+            raise HTTPException(422, "GFW event evidence was not resolved")
+        snapshot = {
+            "mmsi": request.mmsi,
+            "evidence_basis": "gfw_event_only",
+            "ais_evidence": {
+                "status": "unavailable",
+                "note": "No AIS observation or vessel assessment is attached to this report; neither is synthesized or inferred.",
+                "limitation": "Missing AIS is a source and reception coverage gap, not evidence that the vessel was absent, did not fish or acted illegally.",
+            },
+            "assessment": {
+                "status": "unavailable",
+                "note": "No persisted vessel assessment is attached and no risk score is copied.",
+            },
+            "gfw_event_evidence": {
+                **gfw_evidence,
+                "association": "Selected historical inferred GFW event re-fetched from the bounded regional page when this report was created; preserved as a source-bound event point, not a vessel track, live position or proof of illegality.",
+            },
+            "limitations": event_only_limitations(),
+        }
+        if request.include_regional_ocean_context:
+            context = load_satellite_observations()
+            snapshot["regional_ocean_context"] = {
+                **context,
+                "association": "Regional historical context only; not necessarily concurrent with or at the event position.",
+            }
+        row = _insert_report(db, request.mmsi, snapshot)
+        db.commit()
+        return report(row)
     report_window = None
     if request.window_start is not None or request.window_end is not None:
         try:
@@ -212,10 +438,7 @@ def create_report(
             "captured": "Weather was fetched from the existing event-time weather path when this report was created.",
             "association": "Context only; it may differ from weather displayed earlier, does not prove why AIS stopped, and does not change risk scores or evidence states.",
         }
-    sha = digest(snapshot)
-    row = db.execute(text("""INSERT INTO incident_reports (mmsi, snapshot, sha256)
-        VALUES (:mmsi, CAST(:snapshot AS jsonb), :sha) RETURNING *"""),
-        {"mmsi": request.mmsi, "snapshot": json.dumps(snapshot, ensure_ascii=False), "sha": sha}).one()
+    row = _insert_report(db, request.mmsi, snapshot)
     db.commit()
     return report(row)
 
@@ -237,6 +460,9 @@ def sign_report(
     current = report(row)
     if not current["integrity_ok"]:
         raise HTTPException(409, "Evidence snapshot failed integrity verification")
+    if request.expected_sha256 is not None and request.expected_sha256 != current["sha256"]:
+        raise HTTPException(409, "Report changed; reload before approving")
+    _validated_manifest(row, db)
     if current["signed_at"]:
         raise HTTPException(409, "Report has already been signed")
     row = db.execute(text("""UPDATE incident_reports SET signed_by = :officer, signed_at = :now
